@@ -1,1 +1,4 @@
 /target
+
+*.bam
+.DS_Store
