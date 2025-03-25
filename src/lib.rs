@@ -1,6 +1,6 @@
-use std::{error::Error, fs, io::{self, BufReader}};
-use std::env;
-use std::path::Path;
+use std::{error::Error, fs, io::BufReader};
+
+use rust_htslib::{bam, bam::Read};
 use clap::Parser;
 
 #[derive(Parser)]
@@ -16,19 +16,23 @@ pub struct Cli {
 }
 
 pub fn run(args: Cli) -> Result<(), Box<dyn Error>> {
-    let input_bam = fs::File::open(&args.input_bam)
-        .map_err(|e| format!("Failed to open input BAM file: {}", e))?;
+    let input_bam = bam::Reader::from_path(&args.input_bam)
+        .map_err(|e| format!("Failed to open input input BAM file: {}", e))?;
     
-    let reference_fasta = fs::File::open(&args.reference_fasta)
-        .map_err(|e| format!("Failed to open reference FASTA file: {}", e))?;
+    let _reference_fasta_reader = BufReader::new(fs::File::open(&args.reference_fasta)
+        .map_err(|e| format!("Failed to open reference FASTA file: {}", e))?);
     
-    let annotation_gff = fs::File::open(&args.annotation_gff)
-        .map_err(|e| format!("Failed to open annotation GFF file: {}", e))?;
+    let _annotation_gff_reader = BufReader::new(fs::File::open(&args.annotation_gff)
+        .map_err(|e| format!("Failed to open annotation GFF file: {}", e))?);
+ 
+    let header = bam::Header::from_template(input_bam.header());
     
-    // Create BufReaders for more efficient reading (optional)
-    let input_bam_reader = BufReader::new(input_bam);
-    let reference_fasta_reader = BufReader::new(reference_fasta);
-    let annotation_gff_reader = BufReader::new(annotation_gff);
+    // print header records to the terminal, akin to samtools
+    for (key, records) in header.to_hashmap() {
+        for record in records {
+                println!("@{}\tSN:{}\tLN:{}", key, record["SN"], record["LN"]);
+        }
+    }
     
     println!("Successfully opened all files");
     
