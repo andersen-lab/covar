@@ -1,11 +1,14 @@
 use std::collections::HashMap;
 use std::error::Error;
-use std::path::{self, PathBuf};
+use std::path::PathBuf;
 
 use bio::io::{fasta, gff};
 use bio::io::fasta::FastaRead;
-use rust_htslib::{bam, bam::Read};
+use rust_htslib::{bam, bam::Record};
 use clap::Parser;
+
+mod bam_utils;
+use bam_utils::read_pair_generator;
 
 #[derive(Parser)]
 pub struct Cli {
@@ -38,7 +41,6 @@ fn read_annotation(path: &PathBuf) -> Result<HashMap<String, (u64, u64)>, Box<dy
             }
         }
     }
-
     Ok(gene_regions)
 }
 
@@ -46,14 +48,15 @@ pub fn run(args: Cli) -> Result<(), Box<dyn Error>> {
     let reference = read_reference(&args.reference_fasta)?;
     let annotation = read_annotation(&args.annotation_gff)?;
 
-    println!("{:?}", annotation.get("S"));
+    let mut bam = bam::IndexedReader::from_path(&args.input_bam)?;
+    let mut record = Record::new();
 
-    let input_bam = bam::Reader::from_path(&args.input_bam)?;
-    let _bam_header = bam::Header::from_template(input_bam.header());
-
-    
-    // Process the files here...
-    
+    read_pair_generator(
+        &mut bam,
+        "NC_045512.2", // Replace with the actual reference name
+        0, // min_site
+        29903, // max_site, adjust according to your reference length
+    );
     Ok(())
 }
 

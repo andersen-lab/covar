@@ -1,4 +1,4 @@
 /target
 
-*.bam
+*.bam*
 .DS_Store
