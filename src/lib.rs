@@ -46,17 +46,17 @@ fn read_annotation(path: &PathBuf) -> Result<HashMap<String, (u64, u64)>, Box<dy
 
 pub fn run(args: Cli) -> Result<(), Box<dyn Error>> {
     let reference = read_reference(&args.reference_fasta)?;
-    let annotation = read_annotation(&args.annotation_gff)?;
-
+    let _annotation = read_annotation(&args.annotation_gff)?;
     let mut bam = bam::IndexedReader::from_path(&args.input_bam)?;
-    let mut record = Record::new();
 
-    read_pair_generator(
+    let read_pairs = read_pair_generator(
         &mut bam,
-        "NC_045512.2", // Replace with the actual reference name
-        0, // min_site
-        29903, // max_site, adjust according to your reference length
+        reference.id(),
+        0,
+        reference.seq().len().try_into()? //Whole genome for now
     );
+
+    println!("Read pairs: {:?}", read_pairs);
     Ok(())
 }
 
