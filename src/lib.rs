@@ -46,7 +46,9 @@ pub fn run(args: Cli) -> Result<(), Box<dyn Error>> {
                 e
             })?;
 
-        println!("{:?}", variants);
+        for variant in variants {
+            println!("{:?}", variant.to_string());
+        }
     }
 
 

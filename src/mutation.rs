@@ -4,11 +4,11 @@ use std::collections::HashMap;
 use std::error::Error;
 
 pub trait Mutation: std::fmt::Debug {
-    fn position(&self) -> u32;
-    fn reference_base(&self) -> char;
+    fn position(&self) -> u32; // Add 1 to position for human-readable format, but still 0-based internally
+    fn reference_base(&self) -> char; 
     fn alternate_base(&self) -> String;
-    fn to_string(&self) -> String;
-    fn translate(&self) -> String; // Add read/reference info as parameters
+    fn to_string(&self) -> String; 
+    fn translate(&self) -> String; // TODO: add read/reference info as parameters
 }
 
 #[derive(Debug)]
@@ -42,7 +42,7 @@ impl Mutation for SNP {
     }
 
     fn to_string(&self) -> String {
-        format!("{}{}{}", self.ref_base, self.pos, self.alt_base)
+        format!("{}{}{}", self.ref_base, self.pos + 1, self.alt_base)
     }
 
     fn translate(&self) -> String {
@@ -82,7 +82,7 @@ impl Mutation for Insertion {
     }
 
     fn to_string(&self) -> String {
-        format!("{}{}+{}", self.ref_base, self.pos, self.alt_sequence)
+        format!("{}{}+{}", self.ref_base, self.pos + 1, self.alt_sequence)
     }
 
     fn translate(&self) -> String {
@@ -121,7 +121,7 @@ impl Mutation for Deletion {
     }
 
     fn to_string(&self) -> String {
-        format!("{}{}-{}", self.ref_base, self.pos, self.alt_sequence)
+        format!("{}{}-{}", self.ref_base, self.pos + 1, self.alt_sequence)
     }
 
     fn translate(&self) -> String {
@@ -159,7 +159,6 @@ pub fn call_variants(
         let start_pos: u32 = read.pos() as u32;
         let mut read_pos: u32 = 0;
         let mut ref_pos: u32 = start_pos as u32;
-        
         for c in cigar.iter() {
             match c {
                 rust_htslib::bam::record::Cigar::Match(len) => {
@@ -195,6 +194,9 @@ pub fn call_variants(
                         local_variants.push(Box::new(deletion) as Box<dyn Mutation>);
                     }
                     ref_pos += len;
+                },
+                rust_htslib::bam::record::Cigar::SoftClip(len) => {
+                    read_pos += len;
                 },
                 _ => {},  // Handle other CIGAR operations as needed
             }
