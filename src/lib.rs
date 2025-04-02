@@ -29,7 +29,7 @@ pub struct Cli {
 
 pub fn run(args: Cli) -> Result<(), Box<dyn Error>> {
     let reference = read_reference(&args.reference_fasta)?;
-    let _annotation = read_annotation(&args.annotation_gff)?;
+    let annotation = read_annotation(&args.annotation_gff)?;
     let mut bam = bam::IndexedReader::from_path(&args.input_bam)?;
 
     let read_pairs = read_pair_generator(
@@ -37,9 +37,19 @@ pub fn run(args: Cli) -> Result<(), Box<dyn Error>> {
         reference.id(),
         0,
         reference.seq().len().try_into()? // Whole genome for now
-    );
+    )?;
 
-    println!("Read pairs: {:?}", read_pairs);
+    for pair in read_pairs {
+        let variants = call_variants(pair, &reference, &annotation)
+            .map_err(|e| {
+                eprintln!("Error calling variants: {}", e);
+                e
+            })?;
+
+        println!("{:?}", variants);
+    }
+
+
     Ok(())
 }
 
@@ -50,15 +60,15 @@ fn read_reference(path: &PathBuf) -> Result<fasta::Record, Box<dyn Error>> {
     Ok(reference)
 }
 
-fn read_annotation(path: &PathBuf) -> Result<HashMap<String, (u64, u64)>, Box<dyn Error>> {
+fn read_annotation(path: &PathBuf) -> Result<HashMap<String, (u32, u32)>, Box<dyn Error>> {
     let mut reader = gff::Reader::from_file(path, gff::GffType::GFF3)?;
-    let mut gene_regions: HashMap<String, (u64, u64)> = HashMap::new();
+    let mut gene_regions: HashMap<String, (u32, u32)> = HashMap::new();
 
     for record in reader.records() {
         let rec = record.ok().expect("Error reading GFF record");
         if rec.feature_type() == "CDS" {
             if let Some(gene) = rec.attributes().get("gene") {
-                gene_regions.insert(gene.to_string(), (*rec.start(), *rec.end()));
+                gene_regions.insert(gene.to_string(), (*rec.start() as u32, *rec.end() as u32));
             }
         }
     }
