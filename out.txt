@@ -1,1 +1,0 @@
-input: "test.bam", reference: "src/assets/sars-cov-2/NC_045512_Hu1.fasta", annotation: "src/assets/sars-cov-2/NC_045512_Hu-1.gff"
