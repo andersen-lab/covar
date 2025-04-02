@@ -4,16 +4,15 @@ use std::path::PathBuf;
 
 use bio::io::{fasta, gff};
 use bio::io::fasta::FastaRead;
-use rust_htslib::bam;
 use clap::Parser;
+use rust_htslib::bam;
 
 mod bam_utils;
 use bam_utils::read_pair_generator;
 
 mod mutation;
-pub use mutation::{
-    call_variants, Mutation, SNP, Insertion, Deletion
-}; // Re-export the mutation types for external use
+pub use mutation::call_variants;
+
 
 #[derive(Parser)]
 pub struct Cli {
@@ -51,7 +50,6 @@ pub fn run(args: Cli) -> Result<(), Box<dyn Error>> {
         }
     }
 
-
     Ok(())
 }
 
@@ -62,15 +60,15 @@ fn read_reference(path: &PathBuf) -> Result<fasta::Record, Box<dyn Error>> {
     Ok(reference)
 }
 
-fn read_annotation(path: &PathBuf) -> Result<HashMap<String, (u32, u32)>, Box<dyn Error>> {
+fn read_annotation(path: &PathBuf) -> Result<HashMap<(u32, u32), String>, Box<dyn Error>> {
     let mut reader = gff::Reader::from_file(path, gff::GffType::GFF3)?;
-    let mut gene_regions: HashMap<String, (u32, u32)> = HashMap::new();
+    let mut gene_regions: HashMap<(u32, u32), String> = HashMap::new();
 
     for record in reader.records() {
         let rec = record.ok().expect("Error reading GFF record");
         if rec.feature_type() == "CDS" {
             if let Some(gene) = rec.attributes().get("gene") {
-                gene_regions.insert(gene.to_string(), (*rec.start() as u32, *rec.end() as u32));
+                gene_regions.insert((*rec.start() as u32, *rec.end() as u32), gene.to_string());
             }
         }
     }
@@ -95,7 +93,7 @@ mod tests {
         let path = PathBuf::from("src/assets/sars-cov-2/NC_045512_Hu-1.gff");
         let annot = read_annotation(&path).unwrap();
         assert!(!annot.is_empty());
-        assert_eq!(*annot.get("S").unwrap(), (21563, 25384));
+        assert_eq!(*annot.get(&(21563, 25384)).unwrap(), "S");
     }
 }
 

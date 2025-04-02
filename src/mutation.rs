@@ -8,7 +8,7 @@ pub trait Mutation: std::fmt::Debug {
     fn reference_base(&self) -> char; 
     fn alternate_base(&self) -> String;
     fn to_string(&self) -> String; 
-    fn translate(&self) -> String; // TODO: add read/reference info as parameters
+    fn translate(&self, ref_codon: &str, read_codon: &str, gene: &str) -> String; // TODO: add read/reference info as parameters
 }
 
 #[derive(Debug)]
@@ -45,7 +45,7 @@ impl Mutation for SNP {
         format!("{}{}{}", self.ref_base, self.pos + 1, self.alt_base)
     }
 
-    fn translate(&self) -> String {
+    fn translate(&self , ref_codon: &str, read_codon: &str, gene: &str) -> String {
         // Placeholder for translation logic
         format!("{} -> {}", self.ref_base, self.alt_base)
     }
@@ -85,7 +85,7 @@ impl Mutation for Insertion {
         format!("{}{}+{}", self.ref_base, self.pos + 1, self.alt_sequence)
     }
 
-    fn translate(&self) -> String {
+    fn translate(&self, ref_codon: &str, read_codon: &str, gene: &str) -> String {
         // Placeholder for translation logic
         format!("{} -> {} (insertion)", self.ref_base, self.alt_sequence)
     }
@@ -124,7 +124,7 @@ impl Mutation for Deletion {
         format!("{}{}-{}", self.ref_base, self.pos + 1, self.alt_sequence)
     }
 
-    fn translate(&self) -> String {
+    fn translate(&self, ref_codon: &str, read_codon: &str, gene: &str) -> String {
         // Placeholder for translation logic
         format!("{} -> {} (insertion)", self.ref_base, self.alt_sequence)
     }
@@ -135,7 +135,7 @@ impl Mutation for Deletion {
 pub fn call_variants(
     read_pair: (Option<Record>, Option<Record>),
     reference: &fasta::Record,
-    annotation: &HashMap<String, (u32, u32)>
+    annotation: &HashMap<(u32, u32), String>,
 ) -> Result<Vec<Box<dyn Mutation>>, Box<dyn Error>> {
     let (read1, read2) = read_pair;
     if read1.is_none() && read2.is_none() {
@@ -168,7 +168,7 @@ pub fn call_variants(
                             let ref_base = ref_seq[(ref_pos + i) as usize] as char;
                             let read_base = read_seq.chars().nth((read_pos + i) as usize).unwrap();
                             
-                            if ref_base != read_base {
+                            if ref_base != read_base && read_base != 'N' {
                                 let snp = SNP::new((ref_pos + i) as u32, ref_base, read_base);
                                 local_variants.push(Box::new(snp) as Box<dyn Mutation>);
                             }
