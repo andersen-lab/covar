@@ -4,11 +4,16 @@ use std::path::PathBuf;
 
 use bio::io::{fasta, gff};
 use bio::io::fasta::FastaRead;
-use rust_htslib::{bam, bam::Record};
+use rust_htslib::bam;
 use clap::Parser;
 
 mod bam_utils;
 use bam_utils::read_pair_generator;
+
+mod mutation;
+pub use mutation::{
+    call_variants, Mutation, SNP, Insertion, Deletion
+}; // Re-export the mutation types for external use
 
 #[derive(Parser)]
 pub struct Cli {
@@ -20,6 +25,22 @@ pub struct Cli {
 
     #[arg(short = 'a', long = "annotation")]
     pub annotation_gff: std::path::PathBuf,
+}
+
+pub fn run(args: Cli) -> Result<(), Box<dyn Error>> {
+    let reference = read_reference(&args.reference_fasta)?;
+    let _annotation = read_annotation(&args.annotation_gff)?;
+    let mut bam = bam::IndexedReader::from_path(&args.input_bam)?;
+
+    let read_pairs = read_pair_generator(
+        &mut bam,
+        reference.id(),
+        0,
+        reference.seq().len().try_into()? // Whole genome for now
+    );
+
+    println!("Read pairs: {:?}", read_pairs);
+    Ok(())
 }
 
 fn read_reference(path: &PathBuf) -> Result<fasta::Record, Box<dyn Error>> {
@@ -44,21 +65,7 @@ fn read_annotation(path: &PathBuf) -> Result<HashMap<String, (u64, u64)>, Box<dy
     Ok(gene_regions)
 }
 
-pub fn run(args: Cli) -> Result<(), Box<dyn Error>> {
-    let reference = read_reference(&args.reference_fasta)?;
-    let _annotation = read_annotation(&args.annotation_gff)?;
-    let mut bam = bam::IndexedReader::from_path(&args.input_bam)?;
 
-    let read_pairs = read_pair_generator(
-        &mut bam,
-        reference.id(),
-        0,
-        reference.seq().len().try_into()? //Whole genome for now
-    );
-
-    println!("Read pairs: {:?}", read_pairs);
-    Ok(())
-}
 
 #[cfg(test)]
 mod tests {
