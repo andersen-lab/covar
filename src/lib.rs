@@ -17,7 +17,7 @@ pub use mutation::{call_variants, translate_variants};
 #[derive(Parser)]
 pub struct Cli {
     #[arg(short = 'i', long = "input")]
-    /// Input BAM file (must be sorted and indexed).
+    /// Input BAM file (must be primer trimmed, sorted and indexed).
     pub input_bam: std::path::PathBuf,
 
     #[arg(short = 'r', long = "reference")]
@@ -25,7 +25,7 @@ pub struct Cli {
     pub reference_fasta: std::path::PathBuf,
 
     #[clap(short = 'a', long = "annotation")]
-    /// Optional annotation GFF file. If provided, will output amino acid translations in addition to nucleotide variant calls.
+    /// Annotation GFF3 file. Used for translating mutations to respective amino acid mutation.
     pub annotation_gff: std::path::PathBuf,
 }
 
