@@ -3,25 +3,41 @@ use bio::io::fasta;
 use std::collections::HashMap;
 use std::error::Error;
 
+use bio_seq::prelude::*;
+use bio_seq::translation::STANDARD;
+use bio_seq::translation::TranslationTable;
+
 pub trait Mutation: std::fmt::Debug {
-    fn position(&self) -> u32; // Add 1 to position for human-readable format, but still 0-based internally
-    fn reference_base(&self) -> char; 
-    fn alternate_base(&self) -> String;
-    fn to_string(&self) -> String; 
-    fn translate(&self, ref_codon: &str, read_codon: &str, gene: &str) -> String; // TODO: add read/reference info as parameters
+    fn get_position(&self) -> u32; // Add 1 to position for human-readable format, but still 0-based internally
+    fn get_codon(&self) -> &str;
+    fn get_reference_base(&self) -> char;
+    fn get_alternate_base(&self) -> String;
+    fn to_string(&self) -> String;
+    fn translate(&self, ref_codon: &str, gene_info: (&str, u32)) -> Option<String>;
+
+    fn get_gene<'a>(&self, annotation: &'a HashMap<(u32, u32), String>) -> Option<(&'a str, u32)> {
+        for (&(start, end), gene) in annotation.iter() {
+            if self.get_position() >= start && self.get_position() <= end {
+                return Some((gene, start));
+            }
+        }
+        None
+    }
 }
 
 #[derive(Debug)]
 pub struct SNP {
     pos: u32,
+    codon: String,
     ref_base: char,
     alt_base: char,
 }
 
 impl SNP {
-    pub fn new(pos: u32, ref_base: char, alt_base: char) -> Self {
+    pub fn new(pos: u32, codon: String, ref_base: char, alt_base: char) -> Self {
         SNP {
             pos,
+            codon,
             ref_base,
             alt_base,
         }
@@ -29,15 +45,19 @@ impl SNP {
 }
 
 impl Mutation for SNP {
-    fn position(&self) -> u32 {
+    fn get_position(&self) -> u32 {
         self.pos
     }
 
-    fn reference_base(&self) -> char {
+    fn get_codon(&self) -> &str {
+        &self.codon
+    }
+
+    fn get_reference_base(&self) -> char {
         self.ref_base
     }
 
-    fn alternate_base(&self) -> String {
+    fn get_alternate_base(&self) -> String {
         self.alt_base.to_string()
     }
 
@@ -45,9 +65,31 @@ impl Mutation for SNP {
         format!("{}{}{}", self.ref_base, self.pos + 1, self.alt_base)
     }
 
-    fn translate(&self , ref_codon: &str, read_codon: &str, gene: &str) -> String {
-        // Placeholder for translation logic
-        format!("{} -> {}", self.ref_base, self.alt_base)
+    fn translate(&self, reference: &str, gene_info: (&str, u32)) -> Option<String> {
+        let (gene, start_site) = gene_info;
+        let nt_site = self.get_position();
+
+        let codon_phase = (nt_site - start_site) % 3;
+        let codon_site = (nt_site - codon_phase - start_site) / 3 + 1;
+
+        let ref_codon = &reference[(nt_site - codon_phase - 1) as usize .. (nt_site - codon_phase + 2) as usize];
+        let read_codon = self.get_codon();
+
+        let ref_codon: Result<Seq<Dna>, _> = ref_codon.try_into();
+        let ref_codon = match ref_codon {
+            Ok(seq) => seq,
+            Err(_) => return None,
+        };
+        let ref_aa = STANDARD.to_amino(&ref_codon);
+        
+        let alt_codon: Result<Seq<Dna>, _> = read_codon.try_into();
+        let alt_codon = match alt_codon {
+            Ok(seq) => seq,
+            Err(_) => return None,
+        };
+        let alt_aa = STANDARD.to_amino(&alt_codon);
+        
+        Some(format!("{}:{}{}{}", gene, codon_site, ref_aa, alt_aa))   
     }
 }
 #[derive(Debug)]
@@ -69,15 +111,19 @@ impl Insertion {
 
 impl Mutation for Insertion {
 
-    fn position(&self) -> u32 {
+    fn get_position(&self) -> u32 {
         self.pos
     }
 
-    fn reference_base(&self) -> char {
+    fn get_codon(&self) -> &str {
+        &self.alt_sequence
+    }
+
+    fn get_reference_base(&self) -> char {
         self.ref_base
     }
 
-    fn alternate_base(&self) -> String {
+    fn get_alternate_base(&self) -> String {
         self.alt_sequence.clone()
     }
 
@@ -85,11 +131,12 @@ impl Mutation for Insertion {
         format!("{}{}+{}", self.ref_base, self.pos + 1, self.alt_sequence)
     }
 
-    fn translate(&self, ref_codon: &str, read_codon: &str, gene: &str) -> String {
+    fn translate(&self, reference: &str, gene_info: (&str, u32)) -> Option<String> {
         // Placeholder for translation logic
-        format!("{} -> {} (insertion)", self.ref_base, self.alt_sequence)
+        Some(format!("{} -> {} (insertion)", self.ref_base, self.alt_sequence))
     }
 }
+
 #[derive(Debug)]
 pub struct Deletion {
     pos: u32,
@@ -108,15 +155,19 @@ impl Deletion {
 }
 
 impl Mutation for Deletion {
-    fn position(&self) -> u32 {
+    fn get_position(&self) -> u32 {
         self.pos
     }
 
-    fn reference_base(&self) -> char {
+    fn get_codon(&self) -> &str {
+        &self.alt_sequence
+    }
+
+    fn get_reference_base(&self) -> char {
         self.ref_base
     }
 
-    fn alternate_base(&self) -> String {
+    fn get_alternate_base(&self) -> String {
         self.alt_sequence.clone()
     }
 
@@ -124,9 +175,9 @@ impl Mutation for Deletion {
         format!("{}{}-{}", self.ref_base, self.pos + 1, self.alt_sequence)
     }
 
-    fn translate(&self, ref_codon: &str, read_codon: &str, gene: &str) -> String {
+    fn translate(&self, reference: &str, gene_info: (&str, u32)) -> Option<String> {
         // Placeholder for translation logic
-        format!("{} -> {} (insertion)", self.ref_base, self.alt_sequence)
+        Some(format!("{} -> {} (deletion)", self.ref_base, self.alt_sequence))
     }
 }
 
@@ -135,7 +186,6 @@ impl Mutation for Deletion {
 pub fn call_variants(
     read_pair: (Option<Record>, Option<Record>),
     reference: &fasta::Record,
-    annotation: &HashMap<(u32, u32), String>,
 ) -> Result<Vec<Box<dyn Mutation>>, Box<dyn Error>> {
     let (read1, read2) = read_pair;
     if read1.is_none() && read2.is_none() {
@@ -167,9 +217,11 @@ pub fn call_variants(
                         if ref_pos + i < ref_seq_len && read_pos + i < read_seq_len {
                             let ref_base = ref_seq[(ref_pos + i) as usize] as char;
                             let read_base = read_seq.chars().nth((read_pos + i) as usize).unwrap();
+                            let read_codon = &read_seq[(read_pos as usize)..(read_pos as usize + 3).min(read_seq.len())];
                             
                             if ref_base != read_base && read_base != 'N' {
-                                let snp = SNP::new((ref_pos + i) as u32, ref_base, read_base);
+                                
+                                let snp = SNP::new((ref_pos + i) as u32, codon, ref_base, read_base);
                                 local_variants.push(Box::new(snp) as Box<dyn Mutation>);
                             }
                         }
@@ -230,4 +282,28 @@ pub fn call_variants(
     }
     
     Ok(unique_variants)
+}
+
+pub fn translate_variants(
+    variants: Vec<Box<dyn Mutation>>,
+    reference: &fasta::Record,
+    annotation: &HashMap<(u32, u32), String>,
+) -> Vec<String> {
+    let mut translated_variants = Vec::new();
+    
+    for variant in variants {
+        let gene = variant.get_gene(annotation);
+        let ref_codon_bytes = &reference.seq()[variant.get_position() as usize..(variant.get_position() + 3) as usize];
+        let ref_codon = std::str::from_utf8(ref_codon_bytes).unwrap_or("");
+        println!("Ref Codon: {}", ref_codon);
+        let read_codon = &variant.get_alternate_base()[..3]; // Assuming the alternate base is a codon
+        
+        if let Some(gene_info) = gene {
+            if let Some(aa_mut) = variant.translate(ref_codon, read_codon, gene_info) {
+            translated_variants.push(aa_mut);
+            }
+        }
+    }
+    
+    translated_variants
 }

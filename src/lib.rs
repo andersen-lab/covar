@@ -11,18 +11,21 @@ mod bam_utils;
 use bam_utils::read_pair_generator;
 
 mod mutation;
-pub use mutation::call_variants;
+pub use mutation::{call_variants, translate_variants};
 
 
 #[derive(Parser)]
 pub struct Cli {
     #[arg(short = 'i', long = "input")]
+    /// Input BAM file (must be sorted and indexed).
     pub input_bam: std::path::PathBuf,
 
     #[arg(short = 'r', long = "reference")]
+    /// Reference genome FASTA file.
     pub reference_fasta: std::path::PathBuf,
 
-    #[arg(short = 'a', long = "annotation")]
+    #[clap(short = 'a', long = "annotation")]
+    /// Optional annotation GFF file. If provided, will output amino acid translations in addition to nucleotide variant calls.
     pub annotation_gff: std::path::PathBuf,
 }
 
@@ -39,14 +42,16 @@ pub fn run(args: Cli) -> Result<(), Box<dyn Error>> {
     )?;
 
     for pair in read_pairs {
-        let variants = call_variants(pair, &reference, &annotation)
+        let variants = call_variants(pair, &reference)
             .map_err(|e| {
                 eprintln!("Error calling variants: {}", e);
                 e
             })?;
 
-        for variant in variants {
-            println!("{:?}", variant.to_string());
+        let aa_variants = translate_variants(variants, &reference, &annotation);
+
+        for variant in aa_variants {
+            println!("{:?}", variant);
         }
     }
 
