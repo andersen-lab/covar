@@ -1,4 +1,11 @@
-/target
-
-*.bam*
+.vscode
 .DS_Store
+
+# Rust
+target
+
+# Debugging
+*.bam*
+*.fasta*
+*.gff*
+*.tsv*
