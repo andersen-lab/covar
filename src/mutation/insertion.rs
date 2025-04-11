@@ -1,4 +1,6 @@
 use super::mutation;
+use bio::io::fasta;
+use mutation::Gene;
 
 #[derive(Debug)]
 pub struct Insertion {
@@ -35,7 +37,7 @@ impl mutation::Mutation for Insertion {
         format!("{}{}+{}", self.ref_base, self.pos + 1, self.alt_sequence)
     }
 
-    fn translate(&self, reference: &str, gene_info: (&str, u32)) -> Option<String> {
+    fn translate(&self, read: &str, read_pos: u32, reference: &fasta::Record, gene: &Gene) -> Option<String> {
         // Placeholder for translation logic
         Some(format!("{} -> {} (insertion)", self.ref_base, self.alt_sequence))
     }

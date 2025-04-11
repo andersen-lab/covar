@@ -4,7 +4,7 @@ use rust_htslib::bam;
 
 mod mutation;
 
-pub mod utils;
+mod utils;
 use utils::{read_reference, read_annotation, read_pair_generator, call_variants};
 
 #[derive(Parser)]
@@ -47,11 +47,7 @@ pub fn run(args: Cli) -> Result<(), Box<dyn Error>> {
     )?;
 
     for pair in read_pairs {
-        let variants = call_variants(pair, &reference)
-            .map_err(|e| {
-                eprintln!("Error calling variants: {}", e);
-                e
-            })?;
+        let variants = call_variants(pair, &reference, &annotation);
 
         for variant in variants {
             println!("{:?}", variant);

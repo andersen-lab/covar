@@ -6,10 +6,10 @@ use std::path::PathBuf;
 use bio::io::{fasta, gff};
 use bio::io::fasta::FastaRead;
 
+use bio_seq::prelude::*;
 use rust_htslib::bam::{IndexedReader, Read, Record};
 
-use crate::mutation::mutation::Mutation;
-use crate::mutation::{snp::SNP, insertion::Insertion, deletion::Deletion};
+use crate::mutation::{mutation::Mutation, snp::SNP, insertion::Insertion, deletion::Deletion};
 
 pub fn read_reference(path: &PathBuf) -> Result<fasta::Record, Box<dyn Error>> {
     let mut reader = fasta::Reader::from_file(path)?;
@@ -23,7 +23,7 @@ pub fn read_annotation(path: &PathBuf) -> Result<HashMap<(u32, u32), String>, Bo
     let mut gene_regions: HashMap<(u32, u32), String> = HashMap::new();
 
     for record in reader.records() {
-        let rec = record.ok().expect("Error reading GFF record");
+        let rec = record.expect("Error reading GFF record"); // panics
         if rec.feature_type() == "CDS" {
             if let Some(gene) = rec.attributes().get("gene") {
                 gene_regions.insert((*rec.start() as u32, *rec.end() as u32), gene.to_string());
@@ -49,10 +49,10 @@ pub fn read_pair_generator(
         Err(e) => return Err(Box::new(e) as Box<dyn Error>),
     };
 
-    let _ = bam.fetch((tid, min_site as i64, max_site as i64 + 1))
+    let _ = bam.fetch((tid, min_site , max_site + 1))
         .map_err(|e| Box::new(e) as Box<dyn Error>);
 
-    // Collect read pairs by query name
+    // Get read pairs by query name
     let mut read_pairs: HashMap<Vec<u8>, (Option<Record>, Option<Record>)> = HashMap::new();
     for record_result in bam.records() {
         let record = match record_result {
@@ -73,7 +73,7 @@ pub fn read_pair_generator(
         } else if record.is_last_in_template() {
             entry.1 = Some(record);
         } else {
-            // Handle singleton reads if needed
+            // Handle singleton reads
             if entry.0.is_none() {
                 entry.0 = Some(record);
             } else {
@@ -82,30 +82,30 @@ pub fn read_pair_generator(
         }
     }
 
-    // Convert the HashMap into a Vec and return
     Ok(read_pairs.into_iter().map(|(_, pair)| pair).collect())
 }
 
 pub fn call_variants(
     read_pair: (Option<Record>, Option<Record>),
     reference: &fasta::Record,
-) -> Result<Vec<Box<dyn Mutation>>, Box<dyn Error>> {
+    annotation: &HashMap<(u32, u32), String>
+) -> Vec<(Box<dyn Mutation>, String)> { // Return tuple of nt mutation and corresponding translation
     let (read1, read2) = read_pair;
     if read1.is_none() && read2.is_none() {
-        return Err("Both reads are missing, cannot proceed with variant calling.".into());
+        panic!("Both reads are missing, cannot proceed with variant calling.")
     }
     
-    let mut variants: Vec<Box<dyn Mutation>> = Vec::new();
+    let mut variants: Vec<(Box<dyn Mutation>, String)> = Vec::new();
     
     // Function to process a single read
-    let process_read = |read: &Record| -> Result<Vec<Box<dyn Mutation>>, Box<dyn Error>> {
+    let process_read = |read: &Record| -> Result<Vec<(Box<dyn Mutation>, String)>, Box<dyn Error>> {
         let mut local_variants = Vec::new();
 
         let ref_seq = reference.seq();
         let ref_seq_len = ref_seq.len() as u32;
 
-        let read_seq = String::from_utf8(read.seq().as_bytes().to_vec())
-            .map_err(|e| Box::new(e) as Box<dyn Error>)?;
+        let read_seq = String::from_utf8(read.seq().as_bytes().to_vec()).expect("Invalid UTF-8 in read sequence"); // panics
+
         let read_seq_len = read_seq.len() as u32;
         let cigar = read.cigar();
 
@@ -115,17 +115,18 @@ pub fn call_variants(
         for c in cigar.iter() {
             match c {
                 rust_htslib::bam::record::Cigar::Match(len) => {
-                    // Check for SNPs in matched regions
                     for i in 0..*len {
                         if ref_pos + i < ref_seq_len && read_pos + i < read_seq_len {
                             let ref_base = ref_seq[(ref_pos + i) as usize] as char;
                             let read_base = read_seq.chars().nth((read_pos + i) as usize).unwrap();
-                            let read_codon = &read_seq[(read_pos as usize)..(read_pos as usize + 3).min(read_seq.len())];
                             
                             if ref_base != read_base && read_base != 'N' {
-                                
                                 let snp = SNP::new((ref_pos + i) as u32, ref_base, read_base);
-                                local_variants.push(Box::new(snp) as Box<dyn Mutation>);
+                                if let Some(gene) = snp.get_gene(annotation) {
+                                    let aa_mutation = snp.translate(&read_seq, read_pos, reference, &gene)
+                                        .unwrap_or_else(|| "Unknown".to_string()); // Placeholder to handle failed translation
+                                    local_variants.push((Box::new(snp) as Box<dyn Mutation>, aa_mutation));                                    
+                                }
                             }
                         }
                     }
@@ -137,7 +138,8 @@ pub fn call_variants(
                         let ref_base = ref_seq[(ref_pos - 1) as usize] as char;
                         let ins_seq = read_seq[(read_pos as usize)..(read_pos as usize + *len as usize)].to_string();
                         let insertion = Insertion::new((ref_pos - 1) as u32, ref_base, ins_seq);
-                        local_variants.push(Box::new(insertion) as Box<dyn Mutation>);
+                        let aa_mut = "Unknown".to_string();
+                        local_variants.push((Box::new(insertion) as Box<dyn Mutation>, aa_mut));
                     }
                     read_pos += len;
                 },
@@ -146,7 +148,8 @@ pub fn call_variants(
                         let ref_base = ref_seq[(ref_pos - 1) as usize] as char;
                         let del_seq = std::str::from_utf8(&ref_seq[(ref_pos as usize)..(ref_pos as usize + *len as usize)])?.to_string();
                         let deletion = Deletion::new((ref_pos - 1) as u32, ref_base, del_seq);
-                        local_variants.push(Box::new(deletion) as Box<dyn Mutation>);
+                        let aa_mut = "Unknown".to_string();
+                        local_variants.push((Box::new(deletion) as Box<dyn Mutation>, aa_mut));
                     }
                     ref_pos += len;
                 },
@@ -162,13 +165,13 @@ pub fn call_variants(
     
     // Process read1 if present
     if let Some(r1) = read1 {
-        let r1_variants = process_read(&r1)?;
+        let r1_variants = process_read(&r1).expect("Error processing read1 of pair");
         variants.extend(r1_variants);
     }
     
     // Process read2 if present
     if let Some(r2) = read2 {
-        let r2_variants = process_read(&r2)?;
+        let r2_variants = process_read(&r2).expect("Error processing read2 of pair");
         variants.extend(r2_variants);
     }
     
@@ -176,15 +179,15 @@ pub fn call_variants(
     let mut unique_variants = Vec::new();
     let mut seen_variants = std::collections::HashSet::new();
     
-    for var in variants {
+    for (var, aa_mut) in variants {
         let var_str = var.to_string();
         if !seen_variants.contains(&var_str) {
             seen_variants.insert(var_str);
-            unique_variants.push(var);
+            unique_variants.push((var, aa_mut));
         }
     }
     
-    Ok(unique_variants)
+    unique_variants
 }
 
 
