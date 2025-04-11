@@ -1,6 +1,8 @@
-use super::mutation;
 use bio::io::fasta;
-use mutation::Gene;
+
+use super::Mutation;
+use super::Gene;
+
 
 #[derive(Debug)]
 pub struct Insertion {
@@ -19,7 +21,7 @@ impl Insertion {
     }
 }
 
-impl mutation::Mutation for Insertion {
+impl Mutation for Insertion {
 
     fn get_position(&self) -> u32 {
         self.pos

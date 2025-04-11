@@ -6,10 +6,9 @@ use std::path::PathBuf;
 use bio::io::{fasta, gff};
 use bio::io::fasta::FastaRead;
 
-use bio_seq::prelude::*;
 use rust_htslib::bam::{IndexedReader, Read, Record};
 
-use crate::mutation::{mutation::Mutation, snp::SNP, insertion::Insertion, deletion::Deletion};
+use crate::mutation::{Mutation, snp::SNP, insertion::Insertion, deletion::Deletion};
 
 pub fn read_reference(path: &PathBuf) -> Result<fasta::Record, Box<dyn Error>> {
     let mut reader = fasta::Reader::from_file(path)?;

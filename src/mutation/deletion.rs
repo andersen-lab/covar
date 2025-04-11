@@ -1,6 +1,8 @@
-use super::mutation;
 use bio::io::fasta;
-use mutation::Gene;
+
+use super::Mutation;
+use super::Gene;
+
 
 #[derive(Debug)]
 pub struct Deletion {
@@ -19,7 +21,7 @@ impl Deletion {
     }
 }
 
-impl mutation::Mutation for Deletion {
+impl Mutation for Deletion {
     fn get_position(&self) -> u32 {
         self.pos
     }

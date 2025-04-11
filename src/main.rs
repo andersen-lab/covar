@@ -3,7 +3,7 @@ use clap::Parser;
 use rust_htslib::bam;
 
 mod mutation;
-
+mod gene;
 mod utils;
 use utils::{read_reference, read_annotation, read_pair_generator, call_variants};
 

@@ -3,8 +3,9 @@ use bio_seq::translation::STANDARD;
 use bio_seq::translation::TranslationTable;
 use bio::io::fasta;
 
-use super::mutation;
-use mutation::Gene;
+use super::Mutation;
+use crate::gene::Gene;
+
 
 #[derive(Debug)]
 pub struct SNP {
@@ -23,7 +24,7 @@ impl SNP {
     }
 }
 
-impl mutation::Mutation for SNP {
+impl Mutation for SNP {
 
     fn get_position(&self) -> u32 {
         self.pos
