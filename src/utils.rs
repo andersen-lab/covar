@@ -136,7 +136,7 @@ pub fn call_variants(
                     if ref_pos > 0 && read_pos + *len <= read_seq_len {
                         let ref_base = ref_seq[(ref_pos - 1) as usize] as char;
                         let ins_seq = read_seq[(read_pos as usize)..(read_pos as usize + *len as usize)].to_string();
-                        let insertion = Insertion::new((ref_pos - 1) as u32, ref_base, ins_seq);
+                        let insertion = Insertion::new((ref_pos - 1), ref_base, ins_seq);
                         let aa_mut = "Unknown".to_string();
                         local_variants.push((Box::new(insertion) as Box<dyn Mutation>, aa_mut));
                     }
@@ -146,7 +146,7 @@ pub fn call_variants(
                     if ref_pos > 0 && ref_pos + *len <= ref_seq_len {
                         let ref_base = ref_seq[(ref_pos - 1) as usize] as char;
                         let del_seq = std::str::from_utf8(&ref_seq[(ref_pos as usize)..(ref_pos as usize + *len as usize)])?.to_string();
-                        let deletion = Deletion::new((ref_pos - 1) as u32, ref_base, del_seq);
+                        let deletion = Deletion::new((ref_pos - 1), ref_base, del_seq);
                         let aa_mut = "Unknown".to_string();
                         local_variants.push((Box::new(deletion) as Box<dyn Mutation>, aa_mut));
                     }

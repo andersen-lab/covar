@@ -51,6 +51,7 @@ impl Mutation for SNP {
         let ref_codon: Seq<Dna> = reference.seq()[ref_start_pos..ref_end_pos].try_into().unwrap(); // panics
         let ref_aa = STANDARD.to_amino(&ref_codon).to_string();
 
+        
         let alt_start_pos = (read_pos - codon_phase - 1) as usize;
         let alt_end_pos = (read_pos - codon_phase + 2) as usize;
         let alt_codon: Seq<Dna> = read[alt_start_pos..alt_end_pos].try_into().unwrap(); // panics

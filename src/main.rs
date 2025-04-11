@@ -9,7 +9,7 @@ use utils::{read_reference, read_annotation, read_pair_generator, call_variants}
 
 #[derive(Parser)]
 pub struct Cli {
-    #[arg(short = 'i', long = "input")]
+    #[arg(short = 'i', long = "input")] // Add stdin support?
     /// Input BAM file (must be primer trimmed, sorted and indexed).
     pub input_bam: std::path::PathBuf,
 
@@ -17,7 +17,7 @@ pub struct Cli {
     /// Reference genome FASTA file.
     pub reference_fasta: std::path::PathBuf,
 
-    #[clap(short = 'a', long = "annotation")]
+    #[arg(short = 'a', long = "annotation")]
     /// Annotation GFF3 file. Used for translating mutations to respective amino acid mutation.
     pub annotation_gff: std::path::PathBuf,
 }
