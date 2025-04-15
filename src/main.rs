@@ -49,9 +49,9 @@ pub fn run(args: Cli) -> Result<(), Box<dyn Error>> {
     for pair in read_pairs {
         let variants = call_variants(pair, &reference, &annotation);
 
-        for variant in variants {
-            println!("{:?}", variant);
-        }
+        // for variant in variants {
+        //     println!("{:?}", variant);
+        // }
     }
 
     Ok(())

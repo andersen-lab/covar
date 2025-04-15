@@ -110,7 +110,7 @@ pub fn call_variants(
 
         let start_pos: u32 = read.pos() as u32;
         let mut read_pos: u32 = 0;
-        let mut ref_pos: u32 = start_pos as u32;
+        let mut ref_pos: u32 = start_pos;
         for c in cigar.iter() {
             match c {
                 rust_htslib::bam::record::Cigar::Match(len) => {
@@ -120,7 +120,7 @@ pub fn call_variants(
                             let read_base = read_seq.chars().nth((read_pos + i) as usize).unwrap();
                             
                             if ref_base != read_base && read_base != 'N' {
-                                let snp = SNP::new((ref_pos + i) as u32, ref_base, read_base);
+                                let snp = SNP::new(ref_pos + i, ref_base, read_base);
                                 if let Some(gene) = snp.get_gene(annotation) {
                                     let aa_mutation = snp.translate(&read_seq, read_pos, reference, &gene)
                                         .unwrap_or_else(|| "Unknown".to_string()); // Placeholder to handle failed translation

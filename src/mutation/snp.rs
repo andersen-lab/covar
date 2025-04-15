@@ -45,19 +45,29 @@ impl Mutation for SNP {
 
     fn translate(&self, read: &str, read_pos: u32, reference: &fasta::Record, gene: &Gene) -> Option<String> {
         let codon_phase = (self.pos - gene.get_start()) % 3;
+        let codon_pos = (self.pos - gene.get_start()) / 3;
+
+        // handle codon spanning reads
+        if read_pos < codon_phase + 1 { return None }
+        if read_pos + codon_phase  > read.len() as u32 { return None }
 
         let ref_start_pos = (self.pos - codon_phase - 1) as usize;
         let ref_end_pos = (self.pos - codon_phase + 2) as usize;
-        let ref_codon: Seq<Dna> = reference.seq()[ref_start_pos..ref_end_pos].try_into().unwrap(); // panics
+        let ref_codon: Seq<Dna> = match reference.seq()[ref_start_pos..ref_end_pos].try_into() {
+            Ok(codon) => codon,
+            Err(_) => return None,
+        }; 
         let ref_aa = STANDARD.to_amino(&ref_codon).to_string();
 
-        
         let alt_start_pos = (read_pos - codon_phase - 1) as usize;
         let alt_end_pos = (read_pos - codon_phase + 2) as usize;
-        let alt_codon: Seq<Dna> = read[alt_start_pos..alt_end_pos].try_into().unwrap(); // panics
+        let alt_codon: Seq<Dna> = match read[alt_start_pos..alt_end_pos].try_into() {
+            Ok(codon) => codon,
+            Err(_) => return None,
+        };
         let alt_aa = STANDARD.to_amino(&alt_codon).to_string();
 
-        let translated = format!("{}:{}{}{}", gene.get_name(), ref_aa, self.pos + 1, alt_aa);
+        let translated = format!("{}:{}{}{}", gene.get_name(), ref_aa, codon_pos + 1, alt_aa);
 
         Some(translated)
     }
