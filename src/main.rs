@@ -35,23 +35,28 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 
 pub fn run(args: Cli) -> Result<(), Box<dyn Error>> {
+    let mut bam = bam::IndexedReader::from_path(&args.input_bam)?;
     let reference = read_reference(&args.reference_fasta)?;
     let annotation = read_annotation(&args.annotation_gff)?;
-    let mut bam = bam::IndexedReader::from_path(&args.input_bam)?;
 
     let read_pairs = read_pair_generator(
         &mut bam,
         reference.id(),
-        0,
-        reference.seq().len().try_into()? // Whole genome for now
+        21563,
+        25384, // TODO: make this a parameter
+        //reference.seq().len().try_into()? // Whole genome for now
     )?;
 
     for pair in read_pairs {
         let variants = call_variants(pair, &reference, &annotation);
 
-        // for variant in variants {
-        //     println!("{:?}", variant);
-        // }
+        for variant in variants {
+            let (nt, aa) = variant;
+            if aa != "Unknown" {
+                println!("{:?}", nt.to_string());
+                println!("{:?}", aa);
+            }
+        }
     }
 
     Ok(())

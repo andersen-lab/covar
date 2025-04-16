@@ -1,7 +1,10 @@
+use bio_seq::prelude::*;
+use bio_seq::translation::STANDARD;
+use bio_seq::translation::TranslationTable;
 use bio::io::fasta;
 
 use super::Mutation;
-use super::Gene;
+use crate::gene::Gene;
 
 
 #[derive(Debug)]
@@ -39,7 +42,22 @@ impl Mutation for Deletion {
     }
 
     fn translate(&self, read: &str, read_pos: u32, reference: &fasta::Record, gene: &Gene) -> Option<String> {
-        // Placeholder for translation logic
-        Some(format!("{} -> {} (deletion)", self.ref_base, self.alt_sequence))
+        let codon_pos = (self.pos - gene.get_start()) / 3;
+        
+        // check if deletion is in frame
+        let deletion_seq = self.alt_sequence.as_bytes();
+        if deletion_seq.len() % 3 != 0 { return None }
+        let deletion_aa_len = (deletion_seq.len() / 3) as u32;
+
+        let mut translated = String::new();
+
+        if deletion_aa_len > 1 {
+            translated = format!("{}:DEL{}-{}", gene.get_name(), codon_pos + 1, codon_pos + deletion_aa_len + 1);
+        } else {
+            translated = format!("{}:DEL{}", gene.get_name(), codon_pos + 1);
+        }
+
+
+        Some(translated)
     }
 }

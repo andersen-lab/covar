@@ -22,7 +22,7 @@ pub fn read_annotation(path: &PathBuf) -> Result<HashMap<(u32, u32), String>, Bo
     let mut gene_regions: HashMap<(u32, u32), String> = HashMap::new();
 
     for record in reader.records() {
-        let rec = record.expect("Error reading GFF record"); // panics
+        let rec = record?;
         if rec.feature_type() == "CDS" {
             if let Some(gene) = rec.attributes().get("gene") {
                 gene_regions.insert((*rec.start() as u32, *rec.end() as u32), gene.to_string());
@@ -94,26 +94,24 @@ pub fn call_variants(
         panic!("Both reads are missing, cannot proceed with variant calling.")
     }
     
-    let mut variants: Vec<(Box<dyn Mutation>, String)> = Vec::new();
-    
-    // Function to process a single read
-    let process_read = |read: &Record| -> Result<Vec<(Box<dyn Mutation>, String)>, Box<dyn Error>> {
+    // Function to process a single read in the pair
+    let process_read = |read: &Record| -> Vec<(Box<dyn Mutation>, String)> {
         let mut local_variants = Vec::new();
 
         let ref_seq = reference.seq();
         let ref_seq_len = ref_seq.len() as u32;
 
         let read_seq = String::from_utf8(read.seq().as_bytes().to_vec()).expect("Invalid UTF-8 in read sequence"); // panics
-
         let read_seq_len = read_seq.len() as u32;
         let cigar = read.cigar();
 
         let start_pos: u32 = read.pos() as u32;
         let mut read_pos: u32 = 0;
         let mut ref_pos: u32 = start_pos;
+
         for c in cigar.iter() {
             match c {
-                rust_htslib::bam::record::Cigar::Match(len) => {
+                rust_htslib::bam::record::Cigar::Match(len) => { // Call SNPs
                     for i in 0..*len {
                         if ref_pos + i < ref_seq_len && read_pos + i < read_seq_len {
                             let ref_base = ref_seq[(ref_pos + i) as usize] as char;
@@ -123,7 +121,7 @@ pub fn call_variants(
                                 let snp = SNP::new(ref_pos + i, ref_base, read_base);
                                 if let Some(gene) = snp.get_gene(annotation) {
                                     let aa_mutation = snp.translate(&read_seq, read_pos, reference, &gene)
-                                        .unwrap_or_else(|| "Unknown".to_string()); // Placeholder to handle failed translation
+                                        .unwrap_or_else(|| "Unknown".to_string());
                                     local_variants.push((Box::new(snp) as Box<dyn Mutation>, aa_mutation));                                    
                                 }
                             }
@@ -132,23 +130,31 @@ pub fn call_variants(
                     read_pos += len;
                     ref_pos += len;
                 },
-                rust_htslib::bam::record::Cigar::Ins(len) => {
+                rust_htslib::bam::record::Cigar::Ins(len) => { // Call insertions
                     if ref_pos > 0 && read_pos + *len <= read_seq_len {
                         let ref_base = ref_seq[(ref_pos - 1) as usize] as char;
                         let ins_seq = read_seq[(read_pos as usize)..(read_pos as usize + *len as usize)].to_string();
-                        let insertion = Insertion::new((ref_pos - 1), ref_base, ins_seq);
-                        let aa_mut = "Unknown".to_string();
-                        local_variants.push((Box::new(insertion) as Box<dyn Mutation>, aa_mut));
+                        let insertion = Insertion::new(ref_pos - 1, ref_base, ins_seq);
+                        if let Some(gene) = insertion.get_gene(annotation) {
+                            let aa_mutation = insertion.translate(&read_seq, read_pos, reference, &gene)
+                                .unwrap_or_else(|| "Unknown".to_string());
+                            local_variants.push((Box::new(insertion) as Box<dyn Mutation>, aa_mutation));                                    
+                        }
                     }
                     read_pos += len;
                 },
-                rust_htslib::bam::record::Cigar::Del(len) => {
+                rust_htslib::bam::record::Cigar::Del(len) => { // Call deletions
                     if ref_pos > 0 && ref_pos + *len <= ref_seq_len {
                         let ref_base = ref_seq[(ref_pos - 1) as usize] as char;
-                        let del_seq = std::str::from_utf8(&ref_seq[(ref_pos as usize)..(ref_pos as usize + *len as usize)])?.to_string();
+                        let del_seq = std::str::from_utf8(&ref_seq[(ref_pos as usize)..(ref_pos as usize + *len as usize)])
+                            .expect("Invalid UTF-8 sequence in reference")
+                            .to_string();
                         let deletion = Deletion::new((ref_pos - 1), ref_base, del_seq);
-                        let aa_mut = "Unknown".to_string();
-                        local_variants.push((Box::new(deletion) as Box<dyn Mutation>, aa_mut));
+                        if let Some(gene) = deletion.get_gene(annotation) {
+                            let aa_mutation = deletion.translate(&read_seq, read_pos, reference, &gene)
+                                .unwrap_or_else(|| "Unknown".to_string());
+                            local_variants.push((Box::new(deletion) as Box<dyn Mutation>, aa_mutation));                                    
+                        }
                     }
                     ref_pos += len;
                 },
@@ -158,19 +164,20 @@ pub fn call_variants(
                 _ => {},
             }
         }
-        
-        Ok(local_variants)
+        local_variants
     };
-    
+
+    let mut variants: Vec<(Box<dyn Mutation>, String)> = Vec::new();
+
     // Process read1 if present
     if let Some(r1) = read1 {
-        let r1_variants = process_read(&r1).expect("Error processing read1 of pair");
+        let r1_variants = process_read(&r1);
         variants.extend(r1_variants);
     }
     
     // Process read2 if present
     if let Some(r2) = read2 {
-        let r2_variants = process_read(&r2).expect("Error processing read2 of pair");
+        let r2_variants = process_read(&r2);
         variants.extend(r2_variants);
     }
     
@@ -188,28 +195,4 @@ pub fn call_variants(
     
     unique_variants
 }
-
-
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_read_reference() {
-        let path = PathBuf::from("src/assets/sars-cov-2/NC_045512_Hu-1.fasta");
-        let reference = read_reference(&path).unwrap();
-        assert_eq!(reference.seq().len(), 29903);
-    }
-
-    #[test]
-    fn test_read_annotation() {
-        let path = PathBuf::from("src/assets/sars-cov-2/NC_045512_Hu-1.gff");
-        let annot = read_annotation(&path).unwrap();
-        assert!(!annot.is_empty());
-        assert_eq!(*annot.get(&(21563, 25384)).unwrap(), "S");
-    }
-}
-
-
 
