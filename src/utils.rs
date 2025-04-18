@@ -178,10 +178,7 @@ pub fn call_variants(
         variants.extend(r1_variants);
 
         let start_pos = r1.pos() as u32;
-        let end_pos = r1
-            .cigar_cached()
-            .expect("Failed to cache CIGAR")
-            .end_pos() as u32;
+        let end_pos = r1.cigar().end_pos() as u32;
 
         if start_pos < range.0 {
             range.0 = start_pos;
@@ -196,10 +193,7 @@ pub fn call_variants(
         let r2_variants = process_read(&r2);
         variants.extend(r2_variants);
         let start_pos = r2.pos() as u32;
-        let end_pos = r2
-            .cigar_cached()
-            .expect("Failed to cache CIGAR")
-            .end_pos() as u32;
+        let end_pos = r2.cigar().end_pos() as u32;
 
         if start_pos < range.0 {
             range.0 = start_pos;

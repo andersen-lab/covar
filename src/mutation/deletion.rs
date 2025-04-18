@@ -1,6 +1,5 @@
-use bio_seq::prelude::*;
-use bio_seq::translation::STANDARD;
-use bio_seq::translation::TranslationTable;
+use std::fmt;
+
 use bio::io::fasta;
 
 use super::Mutation;
@@ -37,10 +36,6 @@ impl Mutation for Deletion {
         self.alt_sequence.clone()
     }
 
-    fn to_string(&self) -> String {
-        format!("{}{}-{}", self.ref_base, self.pos + 1, self.alt_sequence)
-    }
-
     fn translate(&self, read: &str, read_pos: u32, reference: &fasta::Record, gene: &Gene) -> Option<String> {
         let codon_pos = (self.pos - gene.get_start()) / 3;
         
@@ -59,5 +54,11 @@ impl Mutation for Deletion {
 
 
         Some(translated)
+    }
+}
+
+impl fmt::Display for Deletion {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}{}-{}", self.ref_base, self.pos + 1, self.alt_sequence)
     }
 }

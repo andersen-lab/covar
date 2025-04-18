@@ -1,3 +1,5 @@
+use std::fmt;
+
 use bio_seq::prelude::*;
 use bio_seq::translation::STANDARD;
 use bio_seq::translation::TranslationTable;
@@ -38,10 +40,6 @@ impl Mutation for Insertion {
         self.alt_sequence.clone()
     }
 
-    fn to_string(&self) -> String {
-        format!("{}{}+{}", self.ref_base, self.pos + 1, self.alt_sequence)
-    }
-
     fn translate(&self, read: &str, read_pos: u32, reference: &fasta::Record, gene: &Gene) -> Option<String> {
         let codon_pos = (self.pos - gene.get_start()) / 3;
         
@@ -53,10 +51,21 @@ impl Mutation for Insertion {
             Ok(codon) => codon,
             Err(_) => return None,
         };
-        let aa_insertion = STANDARD.to_amino(&alt_codon).to_string();
+
+        let aa_insertion = alt_codon
+            .windows(3)
+            .map(|codon| STANDARD.to_amino(&codon))
+            .collect::<Seq<Amino>>()
+            .to_string();
 
         let translated = format!("{}:INS{}{}", gene.get_name(), codon_pos + 1, aa_insertion);
 
         Some(translated)
+    }
+}
+
+impl fmt::Display for Insertion {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}{}+{}", self.ref_base, self.pos + 1, self.alt_sequence)
     }
 }

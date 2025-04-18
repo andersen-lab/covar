@@ -1,3 +1,5 @@
+use std::fmt;
+
 use bio_seq::prelude::*;
 use bio_seq::translation::STANDARD;
 use bio_seq::translation::TranslationTable;
@@ -39,10 +41,6 @@ impl Mutation for SNP {
         self.alt_base.to_string()
     }
 
-    fn to_string(&self) -> String {
-        format!("{}{}{}", self.ref_base, self.pos + 1, self.alt_base)
-    }
-
     fn translate(&self, read: &str, read_pos: u32, reference: &fasta::Record, gene: &Gene) -> Option<String> {
         let codon_phase = (self.pos - gene.get_start()) % 3;
         let codon_pos = (self.pos - gene.get_start()) / 3;
@@ -65,10 +63,20 @@ impl Mutation for SNP {
             Ok(codon) => codon,
             Err(_) => return None,
         };
+        // let debug_ref_segment = std::str::from_utf8(&reference.seq()[ref_start_pos..ref_end_pos]).unwrap_or_default();
+        // let debug_mut = self.to_string();
+        // let debug_ref_codon = ref_codon.to_string();
+        // let debug_alt_codon = alt_codon.to_string();
         let alt_aa = STANDARD.to_amino(&alt_codon).to_string();
 
         let translated = format!("{}:{}{}{}", gene.get_name(), ref_aa, codon_pos + 1, alt_aa);
 
         Some(translated)
+    }
+}
+
+impl fmt::Display for SNP {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}{}{}", self.ref_base, self.pos + 1, self.alt_base)
     }
 }

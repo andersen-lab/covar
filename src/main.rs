@@ -47,14 +47,17 @@ pub fn run(args: Cli) -> Result<(), Box<dyn Error>> {
     let read_pairs = read_pair_generator(
         &mut bam,
         reference.id(),
-        21563,
-        25384, // TODO: make this a parameter
-        //reference.seq().len().try_into()? // Whole genome for now
+        0,
+        // TODO: make this a cli argument
+        reference.seq().len().try_into()? // Whole genome for now
     )?;
 
     for pair in read_pairs {
         let variants = call_variants(pair, &reference, &annotation);
 
+        if variants.len() == 0 {
+            continue;
+        }
         println!("{:?}", variants.nt_mutations());
     }
 

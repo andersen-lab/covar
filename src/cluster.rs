@@ -1,3 +1,5 @@
+use std::fmt;
+
 pub struct Cluster {
     nt_mutations: Vec<String>,
     aa_mutations: Vec<String>,
@@ -37,6 +39,23 @@ impl Cluster {
 
     pub fn end(&self) -> u32 {
         self.end
+    }
+
+    pub fn len(&self) -> usize {
+        self.nt_mutations.len()
+    }
+}
+
+impl fmt::Display for Cluster {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f,
+        "{}\t{}\t{}\t{}\t{}\t{}",
+        self.nt_mutations.join(","),
+        self.aa_mutations.join(","),
+        self.count,
+        self.max_count,
+        self.start,
+        self.end)
     }
 }
 
