@@ -9,6 +9,7 @@ use bio::io::fasta::FastaRead;
 use rust_htslib::bam::{IndexedReader, Read, Record};
 
 use crate::mutation::{Mutation, snp::SNP, insertion::Insertion, deletion::Deletion};
+use crate::cluster::Cluster;
 
 pub fn read_reference(path: &PathBuf) -> Result<fasta::Record, Box<dyn Error>> {
     let mut reader = fasta::Reader::from_file(path)?;
@@ -88,8 +89,9 @@ pub fn call_variants(
     read_pair: (Option<Record>, Option<Record>),
     reference: &fasta::Record,
     annotation: &HashMap<(u32, u32), String>
-) -> Vec<(Box<dyn Mutation>, String)> { // Return tuple of nt mutation and corresponding translation
+) -> Cluster { 
     let (read1, read2) = read_pair;
+
     if read1.is_none() && read2.is_none() {
         panic!("Both reads are missing, cannot proceed with variant calling.")
     }
@@ -109,7 +111,7 @@ pub fn call_variants(
         let mut read_pos: u32 = 0;
         let mut ref_pos: u32 = start_pos;
 
-        for c in cigar.iter() {
+        for c in cigar.iter() { // TODO: handle indel offsets
             match c {
                 rust_htslib::bam::record::Cigar::Match(len) => { // Call SNPs
                     for i in 0..*len {
@@ -168,18 +170,45 @@ pub fn call_variants(
     };
 
     let mut variants: Vec<(Box<dyn Mutation>, String)> = Vec::new();
+    let mut range: (u32, u32) = (0, u32::MAX);
 
     // Process read1 if present
     if let Some(r1) = read1 {
         let r1_variants = process_read(&r1);
         variants.extend(r1_variants);
+
+        let start_pos = r1.pos() as u32;
+        let end_pos = r1
+            .cigar_cached()
+            .expect("Failed to cache CIGAR")
+            .end_pos() as u32;
+
+        if start_pos < range.0 {
+            range.0 = start_pos;
+        }
+        if end_pos > range.1 {
+            range.1 = end_pos;
+        }
     }
     
     // Process read2 if present
     if let Some(r2) = read2 {
         let r2_variants = process_read(&r2);
         variants.extend(r2_variants);
+        let start_pos = r2.pos() as u32;
+        let end_pos = r2
+            .cigar_cached()
+            .expect("Failed to cache CIGAR")
+            .end_pos() as u32;
+
+        if start_pos < range.0 {
+            range.0 = start_pos;
+        }
+        if end_pos > range.1 {
+            range.1 = end_pos;
+        }
     }
+    
     
     // Basic deduplication - keep unique variants only
     let mut unique_variants = Vec::new();
@@ -192,7 +221,22 @@ pub fn call_variants(
             unique_variants.push((var, aa_mut));
         }
     }
+
+    // Unpack nt and aa mutations
+    let mut nt_mutations = Vec::new();
+    let mut aa_mutations = Vec::new();
+    for (var, aa_mut) in unique_variants {
+        nt_mutations.push(var.to_string());
+        aa_mutations.push(aa_mut);
+    }
     
-    unique_variants
+    Cluster::new(
+        nt_mutations,
+        aa_mutations,
+        1,
+        1,
+        range.0,
+        range.1,
+    )
 }
 

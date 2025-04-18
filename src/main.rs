@@ -2,6 +2,7 @@ use std::error::Error;
 use clap::Parser;
 use rust_htslib::bam;
 
+mod cluster;
 mod mutation;
 mod gene;
 mod utils;
@@ -20,6 +21,10 @@ pub struct Cli {
     #[arg(short = 'a', long = "annotation")]
     /// Annotation GFF3 file. Used for translating mutations to respective amino acid mutation.
     pub annotation_gff: std::path::PathBuf,
+
+    #[clap(short = 'o', long = "output")]
+    /// Output file. If not provided, output will be printed to stdout.
+    pub output: Option<std::path::PathBuf>,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -50,13 +55,7 @@ pub fn run(args: Cli) -> Result<(), Box<dyn Error>> {
     for pair in read_pairs {
         let variants = call_variants(pair, &reference, &annotation);
 
-        for variant in variants {
-            let (nt, aa) = variant;
-            if aa != "Unknown" {
-                println!("{:?}", nt.to_string());
-                println!("{:?}", aa);
-            }
-        }
+        println!("{:?}", variants.nt_mutations());
     }
 
     Ok(())
