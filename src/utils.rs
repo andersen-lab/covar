@@ -7,6 +7,7 @@ use bio::io::{fasta, gff};
 use bio::io::fasta::FastaRead;
 
 use rust_htslib::bam::{IndexedReader, Read, Record};
+use rust_htslib::bam::record::Cigar;
 
 use crate::mutation::{Mutation, snp::SNP, insertion::Insertion, deletion::Deletion};
 use crate::cluster::Cluster;
@@ -113,7 +114,7 @@ pub fn call_variants(
 
         for c in cigar.iter() { // TODO: handle indel offsets
             match c {
-                rust_htslib::bam::record::Cigar::Match(len) => { // Call SNPs
+                Cigar::Match(len) => { // Call SNPs
                     for i in 0..*len {
                         if ref_pos + i < ref_seq_len && read_pos + i < read_seq_len {
                             let ref_base = ref_seq[(ref_pos + i) as usize] as char;
@@ -132,7 +133,7 @@ pub fn call_variants(
                     read_pos += len;
                     ref_pos += len;
                 },
-                rust_htslib::bam::record::Cigar::Ins(len) => { // Call insertions
+                Cigar::Ins(len) => { // Call insertions
                     if ref_pos > 0 && read_pos + *len <= read_seq_len {
                         let ref_base = ref_seq[(ref_pos - 1) as usize] as char;
                         let ins_seq = read_seq[(read_pos as usize)..(read_pos as usize + *len as usize)].to_string();
@@ -145,7 +146,7 @@ pub fn call_variants(
                     }
                     read_pos += len;
                 },
-                rust_htslib::bam::record::Cigar::Del(len) => { // Call deletions
+                Cigar::Del(len) => { // Call deletions
                     if ref_pos > 0 && ref_pos + *len <= ref_seq_len {
                         let ref_base = ref_seq[(ref_pos - 1) as usize] as char;
                         let del_seq = std::str::from_utf8(&ref_seq[(ref_pos as usize)..(ref_pos as usize + *len as usize)])
@@ -160,7 +161,7 @@ pub fn call_variants(
                     }
                     ref_pos += len;
                 },
-                rust_htslib::bam::record::Cigar::SoftClip(len) => {
+                Cigar::SoftClip(len) => {
                     read_pos += len;
                 },
                 _ => {},
@@ -170,7 +171,7 @@ pub fn call_variants(
     };
 
     let mut variants: Vec<(Box<dyn Mutation>, String)> = Vec::new();
-    let mut range: (u32, u32) = (0, u32::MAX);
+    let mut range: (u32, u32) = (0, u32::MAX); // Consider using htslib range type here
 
     // Process read1 if present
     if let Some(r1) = read1 {
@@ -229,7 +230,7 @@ pub fn call_variants(
         aa_mutations,
         1,
         1,
-        range.0,
+        range.0, 
         range.1,
     )
 }

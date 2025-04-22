@@ -62,10 +62,8 @@ impl Mutation for Insertion {
 
         Some(translated)
     }
-}
 
-impl fmt::Display for Insertion {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{}+{}", self.ref_base, self.pos + 1, self.alt_sequence)
+    fn to_string(&self) -> String {
+        format!("{}{}+{}", self.ref_base, self.pos + 1, self.alt_sequence)
     }
 }

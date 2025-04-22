@@ -8,11 +8,12 @@ use std::collections::HashMap;
 
 use crate::gene::Gene;
 
-pub trait Mutation: std::fmt::Debug {
+pub trait Mutation {
     fn get_position(&self) -> u32; // Add 1 to position for human-readable format, but still 0-based internally
     fn get_reference_base(&self) -> char;
     fn get_alternate_base(&self) -> String;
     fn translate(&self, read: &str, read_pos: u32, reference: &fasta::Record, gene: &Gene) -> Option<String>;
+    fn to_string(&self) -> String;
 
     fn get_gene(&self, annotation: &HashMap<(u32, u32), String>) -> Option<Gene> {
         for (&(start, end), gene_name) in annotation.iter() {
@@ -28,10 +29,5 @@ pub trait Mutation: std::fmt::Debug {
     }
 }
 
-impl std::fmt::Display for dyn Mutation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
 
 

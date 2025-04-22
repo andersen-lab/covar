@@ -73,10 +73,8 @@ impl Mutation for SNP {
 
         Some(translated)
     }
-}
 
-impl fmt::Display for SNP {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{}{}", self.ref_base, self.pos + 1, self.alt_base)
+    fn to_string(&self) -> String {
+        format!("{}{}{}", self.ref_base, self.pos + 1, self.alt_base)
     }
 }
