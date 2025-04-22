@@ -1,11 +1,13 @@
+mod cluster;
+mod gene;
+mod mutation;
+mod utils;
+
 use std::error::Error;
 use clap::Parser;
 use rust_htslib::bam;
 
-mod cluster;
-mod mutation;
-mod gene;
-mod utils;
+use cluster::Cluster;
 use utils::{read_reference, read_annotation, read_pair_generator, call_variants};
 
 #[derive(Parser)]
@@ -21,10 +23,6 @@ pub struct Cli {
     #[arg(short = 'a', long = "annotation")]
     /// Annotation GFF3 file. Used for translating mutations to respective amino acid mutation.
     pub annotation_gff: std::path::PathBuf,
-
-    #[clap(short = 'o', long = "output")]
-    /// Output file. If not provided, output will be printed to stdout.
-    pub output: Option<std::path::PathBuf>,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -44,6 +42,7 @@ pub fn run(args: Cli) -> Result<(), Box<dyn Error>> {
     let reference = read_reference(&args.reference_fasta)?;
     let annotation = read_annotation(&args.annotation_gff)?;
 
+    // Get read pairs
     let read_pairs = read_pair_generator(
         &mut bam,
         reference.id(),
@@ -52,14 +51,21 @@ pub fn run(args: Cli) -> Result<(), Box<dyn Error>> {
         reference.seq().len().try_into()? // Whole genome for now
     )?;
 
+    // Call variants
+    let mut clusters = Vec::<Cluster>::new();
     for pair in read_pairs {
         let variants = call_variants(pair, &reference, &annotation);
-
-        if variants.len() == 0 {
-            continue;
-        }
-        println!("{:?}", variants.nt_mutations());
+        if variants.len() == 0 { continue; }
+        clusters.push(variants);
     }
 
+    // Aggregate unique clusters
+    let clusters_merged = cluster::merge_clusters(&clusters);
+
+    // Output to stdout
+    println!("nt_mutations\taa_mutations\tcount\tmax_count\tstart\tend");
+    for cluster in clusters_merged {
+        println!("{}", cluster); // Add buffer
+    }
     Ok(())
 }

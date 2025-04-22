@@ -1,15 +1,13 @@
-use std::fmt;
+use std::collections::HashMap;
 
 use bio_seq::prelude::*;
 use bio_seq::translation::STANDARD;
 use bio_seq::translation::TranslationTable;
 use bio::io::fasta;
 
-use super::Mutation;
 use crate::gene::Gene;
 
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SNP {
     pos: u32,
     ref_base: char,
@@ -24,24 +22,33 @@ impl SNP {
             alt_base,
         }
     }
-}
 
-impl Mutation for SNP {
-
-    fn get_position(&self) -> u32 {
+    pub fn get_position(&self) -> u32 {
         self.pos
     }
 
-
-    fn get_reference_base(&self) -> char {
+    pub fn get_reference_base(&self) -> char {
         self.ref_base
     }
 
-    fn get_alternate_base(&self) -> String {
+    pub fn get_alternate_base(&self) -> String {
         self.alt_base.to_string()
     }
 
-    fn translate(&self, read: &str, read_pos: u32, reference: &fasta::Record, gene: &Gene) -> Option<String> {
+    pub fn get_gene(&self, annotation: &HashMap<(u32, u32), String>) -> Option<Gene> {
+        for (&(start, end), gene_name) in annotation.iter() {
+            if self.get_position() >= start && self.get_position() <= end {
+                return Some(Gene {
+                    start,
+                    end,
+                    name: gene_name.clone(),
+                });
+            }
+        }
+        None
+    }
+
+    pub fn translate(&self, read: &str, read_pos: u32, reference: &fasta::Record, gene: &Gene) -> Option<String> {
         let codon_phase = (self.pos - gene.get_start()) % 3;
         let codon_pos = (self.pos - gene.get_start()) / 3;
 
@@ -72,9 +79,5 @@ impl Mutation for SNP {
         let translated = format!("{}:{}{}{}", gene.get_name(), ref_aa, codon_pos + 1, alt_aa);
 
         Some(translated)
-    }
-
-    fn to_string(&self) -> String {
-        format!("{}{}{}", self.ref_base, self.pos + 1, self.alt_base)
     }
 }

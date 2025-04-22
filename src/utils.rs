@@ -98,8 +98,8 @@ pub fn call_variants(
     }
     
     // Function to process a single read in the pair
-    let process_read = |read: &Record| -> Vec<(Box<dyn Mutation>, String)> {
-        let mut local_variants = Vec::new();
+    let process_read = |read: &Record| -> Vec<(Mutation, String)> {
+        let mut local_variants: Vec<(Mutation, String)> = Vec::new();
 
         let ref_seq = reference.seq();
         let ref_seq_len = ref_seq.len() as u32;
@@ -125,7 +125,7 @@ pub fn call_variants(
                                 if let Some(gene) = snp.get_gene(annotation) {
                                     let aa_mutation = snp.translate(&read_seq, read_pos, reference, &gene)
                                         .unwrap_or_else(|| "Unknown".to_string());
-                                    local_variants.push((Box::new(snp) as Box<dyn Mutation>, aa_mutation));                                    
+                                    local_variants.push((Mutation::SNP(snp), aa_mutation));                                    
                                 }
                             }
                         }
@@ -141,7 +141,7 @@ pub fn call_variants(
                         if let Some(gene) = insertion.get_gene(annotation) {
                             let aa_mutation = insertion.translate(&read_seq, read_pos, reference, &gene)
                                 .unwrap_or_else(|| "Unknown".to_string());
-                            local_variants.push((Box::new(insertion) as Box<dyn Mutation>, aa_mutation));                                    
+                            local_variants.push((Mutation::Insertion(insertion), aa_mutation));                                    
                         }
                     }
                     read_pos += len;
@@ -156,7 +156,7 @@ pub fn call_variants(
                         if let Some(gene) = deletion.get_gene(annotation) {
                             let aa_mutation = deletion.translate(&read_seq, read_pos, reference, &gene)
                                 .unwrap_or_else(|| "Unknown".to_string());
-                            local_variants.push((Box::new(deletion) as Box<dyn Mutation>, aa_mutation));                                    
+                            local_variants.push((Mutation::Deletion(deletion), aa_mutation));                                    
                         }
                     }
                     ref_pos += len;
@@ -170,7 +170,7 @@ pub fn call_variants(
         local_variants
     };
 
-    let mut variants: Vec<(Box<dyn Mutation>, String)> = Vec::new();
+    let mut variants: Vec<(Mutation, String)> = Vec::new();
     let mut range: (u32, u32) = (0, u32::MAX); // Consider using htslib range type here
 
     // Process read1 if present
@@ -221,7 +221,7 @@ pub fn call_variants(
     let mut nt_mutations = Vec::new();
     let mut aa_mutations = Vec::new();
     for (var, aa_mut) in unique_variants {
-        nt_mutations.push(var.to_string());
+        nt_mutations.push(var);
         aa_mutations.push(aa_mut);
     }
     
