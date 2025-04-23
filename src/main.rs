@@ -46,10 +46,13 @@ pub fn run(args: Cli) -> Result<(), Box<dyn Error>> {
     let read_pairs = read_pair_generator(
         &mut bam,
         reference.id(),
-        0,
-        // TODO: make this a cli argument
-        reference.seq().len().try_into()? // Whole genome for now
-    )?;
+        21563,
+        25384,
+        // 0
+        // reference.seq().len().try_into()? // Whole genome for now
+    );
+
+    println!("Done fetching read pairs");
 
     // Call variants
     let mut clusters = Vec::<Cluster>::new();
@@ -58,6 +61,8 @@ pub fn run(args: Cli) -> Result<(), Box<dyn Error>> {
         if variants.len() == 0 { continue; }
         clusters.push(variants);
     }
+
+    println!("Done calling variants");
 
     // Aggregate unique clusters
     let clusters_merged = cluster::merge_clusters(&clusters);

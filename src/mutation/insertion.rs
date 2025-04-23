@@ -62,7 +62,7 @@ impl Insertion {
 
         let aa_insertion = alt_codon
             .windows(3)
-            .map(|codon| STANDARD.to_amino(&codon))
+            .map(|codon| STANDARD.to_amino(codon))
             .collect::<Seq<Amino>>()
             .to_string();
 

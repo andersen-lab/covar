@@ -54,13 +54,11 @@ impl Deletion {
         if deletion_seq.len() % 3 != 0 { return None }
         let deletion_aa_len = (deletion_seq.len() / 3) as u32;
 
-        let mut translated = String::new();
-
-        if deletion_aa_len > 1 {
-            translated = format!("{}:DEL{}-{}", gene.get_name(), codon_pos + 1, codon_pos + deletion_aa_len + 1);
+        let translated = if deletion_aa_len > 1 {
+            format!("{}:DEL{}/{}", gene.get_name(), codon_pos + 1, codon_pos + deletion_aa_len + 1)
         } else {
-            translated = format!("{}:DEL{}", gene.get_name(), codon_pos + 1);
-        }
+            format!("{}:DEL{}", gene.get_name(), codon_pos + 1)
+        };
 
         Some(translated)
     }

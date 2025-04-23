@@ -38,8 +38,7 @@ pub fn read_pair_generator(
     bam: & mut IndexedReader,
     refname: &str,
     min_site: i64,
-    max_site: i64,
-) -> Result<Vec<(Option<Record>, Option<Record>)>, Box<dyn Error>> {
+    max_site: i64,) -> Vec<(Option<Record>, Option<Record>)> {
 
     let tid = match bam.header().tid(refname.as_bytes())
             .ok_or_else(|| std::io::Error::new(
@@ -47,7 +46,7 @@ pub fn read_pair_generator(
                 format!("Reference '{}' not found", refname)
             )) {
         Ok(t) => t,
-        Err(e) => return Err(Box::new(e) as Box<dyn Error>),
+        Err(e) => panic!("Error: {}", e),
     };
 
     let _ = bam.fetch((tid, min_site , max_site + 1))
@@ -58,7 +57,7 @@ pub fn read_pair_generator(
     for record_result in bam.records() {
         let record = match record_result {
             Ok(r) => r,
-            Err(e) => return Err(Box::new(e) as Box<dyn Error>),
+            Err(e) => panic!("Error reading BAM record: {}", e),
         };
 
         if record.is_unmapped() || record.is_secondary() || record.is_supplementary() {
@@ -83,7 +82,7 @@ pub fn read_pair_generator(
         }
     }
 
-    Ok(read_pairs.into_iter().map(|(_, pair)| pair).collect())
+    read_pairs.into_iter().map(|(_, pair)| pair).collect()
 }
 
 pub fn call_variants(
@@ -152,7 +151,7 @@ pub fn call_variants(
                         let del_seq = std::str::from_utf8(&ref_seq[(ref_pos as usize)..(ref_pos as usize + *len as usize)])
                             .expect("Invalid UTF-8 sequence in reference")
                             .to_string();
-                        let deletion = Deletion::new((ref_pos - 1), ref_base, del_seq);
+                        let deletion = Deletion::new(ref_pos - 1, ref_base, del_seq);
                         if let Some(gene) = deletion.get_gene(annotation) {
                             let aa_mutation = deletion.translate(&read_seq, read_pos, reference, &gene)
                                 .unwrap_or_else(|| "Unknown".to_string());
@@ -180,12 +179,16 @@ pub fn call_variants(
 
         let start_pos = r1.pos() as u32;
         let end_pos = r1.cigar().end_pos() as u32;
-
-        if start_pos < range.0 {
+        if range.0 == 0 && range.1 == u32::MAX {
             range.0 = start_pos;
-        }
-        if end_pos > range.1 {
             range.1 = end_pos;
+        } else {
+            if start_pos < range.0 {
+                range.0 = start_pos;
+            }
+            if end_pos > range.1 {
+                range.1 = end_pos;
+            }
         }
     }
     
@@ -196,12 +199,18 @@ pub fn call_variants(
         let start_pos = r2.pos() as u32;
         let end_pos = r2.cigar().end_pos() as u32;
 
-        if start_pos < range.0 {
+        if range.0 == 0 && range.1 == u32::MAX {
             range.0 = start_pos;
-        }
-        if end_pos > range.1 {
             range.1 = end_pos;
+        } else {
+            if start_pos < range.0 {
+                range.0 = start_pos;
+            }
+            if end_pos > range.1 {
+                range.1 = end_pos;
+            }
         }
+
     }
     
     
@@ -217,14 +226,22 @@ pub fn call_variants(
         }
     }
 
-    // Unpack nt and aa mutations
-    let mut nt_mutations = Vec::new();
-    let mut aa_mutations = Vec::new();
-    for (var, aa_mut) in unique_variants {
-        nt_mutations.push(var);
+    // Sort unique variants by mut position
+    unique_variants.sort_by(|a, b| {
+        let a_pos = a.0.get_position();
+        let b_pos = b.0.get_position();
+        a_pos.cmp(&b_pos)
+    });
+
+    // Separate nt and aa mutations and parse as string
+    let mut nt_mutations: Vec<String> = Vec::new();
+    let mut aa_mutations: Vec<String> = Vec::new();
+
+    for (mutation, aa_mut) in unique_variants {
+        nt_mutations.push(mutation.to_string());
         aa_mutations.push(aa_mut);
     }
-    
+
     Cluster::new(
         nt_mutations,
         aa_mutations,

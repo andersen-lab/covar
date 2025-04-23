@@ -1,10 +1,8 @@
 use std::fmt;
 
-use crate::mutation::Mutation;
-
 #[derive(Clone)]
 pub struct Cluster {
-    nt_mutations: Vec<Mutation>,
+    nt_mutations: Vec<String>,
     aa_mutations: Vec<String>,
     count: u32,
     max_count: u32,
@@ -13,7 +11,7 @@ pub struct Cluster {
 }
 
 impl Cluster {
-    pub fn new(nt_mutations: Vec<Mutation>, aa_mutations: Vec<String>, count: u32, max_count: u32, start: u32, end: u32) -> Self {
+    pub fn new(nt_mutations: Vec<String>, aa_mutations: Vec<String>, count: u32, max_count: u32, start: u32, end: u32) -> Self {
         Self {
             nt_mutations,
             aa_mutations,
@@ -23,19 +21,13 @@ impl Cluster {
             end,
         }
     }
-    
+
     pub fn nt_mutations(&self) -> String {
-        let mut sorted_nt_mutations = self.nt_mutations.clone();
-        sorted_nt_mutations.sort_by(|a, b| {
-            let a_pos = a.get_position();
-            let b_pos = b.get_position();
-            a_pos.cmp(&b_pos)
-        });
-        sorted_nt_mutations
-            .iter()
-            .map(|mutation| mutation.to_string())
-            .collect::<Vec<_>>()
-            .join(",")
+        self.nt_mutations.join(",")
+    }
+
+    pub fn aa_mutations(&self) -> String {
+        self.aa_mutations.join(",")
     }
 
     pub fn count(&self) -> u32 {
@@ -64,7 +56,7 @@ impl fmt::Display for Cluster {
         write!(f,
         "{}\t{}\t{}\t{}\t{}\t{}",
         self.nt_mutations(),
-        self.aa_mutations.join(","),
+        self.aa_mutations(),
         self.count,
         self.max_count,
         self.start,
