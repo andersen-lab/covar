@@ -236,10 +236,19 @@ pub fn call_variants(
     // Separate nt and aa mutations and parse as string
     let mut nt_mutations: Vec<String> = Vec::new();
     let mut aa_mutations: Vec<String> = Vec::new();
+    let mut mutations_start = 0;
+    let mut mutations_end = u32::MAX;
 
     for (mutation, aa_mut) in unique_variants {
         nt_mutations.push(mutation.to_string());
         aa_mutations.push(aa_mut);
+        let pos = mutation.get_position();
+        if mutations_start == 0 || pos < mutations_start {
+            mutations_start = pos;
+        }
+        if mutations_end == u32::MAX || pos > mutations_end {
+            mutations_end = pos;
+        }
     }
 
     Cluster::new(
@@ -249,6 +258,8 @@ pub fn call_variants(
         1,
         range.0, 
         range.1,
+        mutations_start,
+        mutations_end,
     )
 }
 

@@ -55,7 +55,7 @@ pub fn run(args: Cli) -> Result<(), Box<dyn Error>> {
         21563,
         25384,
         // 0
-        // reference.seq().len().try_into()? // Whole genome for now
+        // reference.seq().len().try_into()? // Whole genome
     );
 
     println!("Done fetching read pairs");
@@ -64,7 +64,7 @@ pub fn run(args: Cli) -> Result<(), Box<dyn Error>> {
     let mut clusters = Vec::<Cluster>::new();
     for pair in read_pairs {
         let variants = call_variants(pair, &reference, &annotation);
-        if variants.len() == 0 { continue; }
+        //if variants.len() == 0 { continue; }
         clusters.push(variants);
     }
 

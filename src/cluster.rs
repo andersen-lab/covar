@@ -1,4 +1,5 @@
 use std::fmt;
+use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct Cluster {
@@ -6,19 +7,23 @@ pub struct Cluster {
     aa_mutations: Vec<String>,
     count: u32,
     max_count: u32,
-    start: u32,
-    end: u32,
+    coverage_start: u32,
+    coverage_end: u32,
+    mutations_start: u32,
+    mutations_end: u32,
 }
 
 impl Cluster {
-    pub fn new(nt_mutations: Vec<String>, aa_mutations: Vec<String>, count: u32, max_count: u32, start: u32, end: u32) -> Self {
+    pub fn new(nt_mutations: Vec<String>, aa_mutations: Vec<String>, count: u32, max_count: u32, coverage_start: u32, coverage_end: u32, mutations_start: u32, mutations_end: u32) -> Self {
         Self {
             nt_mutations,
             aa_mutations,
             count,
             max_count,
-            start,
-            end,
+            coverage_start,
+            coverage_end,
+            mutations_start,
+            mutations_end,
         }
     }
 
@@ -39,11 +44,11 @@ impl Cluster {
     }
 
     pub fn start(&self) -> u32 {
-        self.start
+        self.coverage_start
     }
 
     pub fn end(&self) -> u32 {
-        self.end
+        self.coverage_end
     }
 
     pub fn len(&self) -> usize {
@@ -59,30 +64,34 @@ impl fmt::Display for Cluster {
         self.aa_mutations(),
         self.count,
         self.max_count,
-        self.start,
-        self.end)
+        self.coverage_start,
+        self.coverage_end)
     }
 }
 
 pub fn merge_clusters(clusters: &Vec<Cluster>) -> Vec<Cluster> {
-    let mut merged_clusters = Vec::<Cluster>::new();
+
+    let mut merged_map: HashMap<String, Cluster> = HashMap::new();
 
     for cluster in clusters {
-        let mut found = false;
-        for merged_cluster in &mut merged_clusters {
-            if cluster.nt_mutations() == merged_cluster.nt_mutations() {
-                // Merge clusters
-                merged_cluster.count += cluster.count;
-                merged_cluster.start = merged_cluster.start.max(cluster.start);
-                merged_cluster.end = merged_cluster.end.min(cluster.end);
-                found = true;
-                break;
+        let key = cluster.nt_mutations();
+        if let Some(merged_cluster) = merged_map.get_mut(&key) {
+            // Merge clusters
+            merged_cluster.count += cluster.count;
+            merged_cluster.coverage_start = merged_cluster.coverage_start.max(cluster.coverage_start);
+            merged_cluster.coverage_end = merged_cluster.coverage_end.min(cluster.coverage_end);
+        } else {
+            // Add new cluster
+            merged_map.insert(key.clone(), cluster.clone());
+        }
+
+        // Update max_count for overlapping clusters
+        for merged_cluster in merged_map.values_mut() {
+            if cluster.coverage_start <= merged_cluster.mutations_start && cluster.coverage_end >= merged_cluster.mutations_end {
+                merged_cluster.max_count += cluster.count;
             }
         }
-        if !found {
-            // Add new cluster
-            merged_clusters.push(cluster.clone());
-        }
     }
-    merged_clusters
+
+    merged_map.into_values().collect()
 }
