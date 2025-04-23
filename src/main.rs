@@ -10,8 +10,10 @@ use rust_htslib::bam;
 use cluster::Cluster;
 use utils::{read_reference, read_annotation, read_pair_generator, call_variants};
 
-#[derive(Parser)]
-pub struct Cli {
+#[derive(Parser, Debug)]
+#[command(name = "coVar")]
+#[command(version, about)]
+struct Cli {
     #[arg(short = 'i', long = "input")] // Add stdin support?
     /// Input BAM file (must be primer trimmed, sorted and indexed).
     pub input_bam: std::path::PathBuf,
@@ -23,6 +25,10 @@ pub struct Cli {
     #[arg(short = 'a', long = "annotation")]
     /// Annotation GFF3 file. Used for translating mutations to respective amino acid mutation.
     pub annotation_gff: std::path::PathBuf,
+
+    #[arg(short = 'o', long = "output")]
+    /// Output file. If not provided, output will be printed to stdout.
+    pub output: Option<std::path::PathBuf>,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -67,10 +73,17 @@ pub fn run(args: Cli) -> Result<(), Box<dyn Error>> {
     // Aggregate unique clusters
     let clusters_merged = cluster::merge_clusters(&clusters);
 
-    // Output to stdout
-    println!("nt_mutations\taa_mutations\tcount\tmax_count\tstart\tend");
+    let mut output = String::new();
+    output.push_str("nt_mutations\taa_mutations\tcount\tmax_count\tstart\tend\n");
     for cluster in clusters_merged {
-        println!("{}", cluster); // Add buffer
+        output.push_str(&format!("{}\n", cluster));
     }
+
+    if let Some(output_path) = args.output {
+        std::fs::write(output_path, output)?;
+    } else {
+        print!("{}", output);
+    }
+    
     Ok(())
 }

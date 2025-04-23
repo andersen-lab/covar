@@ -2,6 +2,8 @@
 name = "covar"
 version = "0.1.0"
 edition = "2024"
+description = "Calls physically-linked mutation clusters from wastewater amplicon sequencing data"
+authors = ["Dylan Pilz <dpilz@scripps.edu>"]
 
 [dependencies]
 bio = "2.2.0"
