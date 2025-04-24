@@ -2,6 +2,7 @@ use std::fmt;
 use std::collections::HashMap;
 
 use bio::io::fasta;
+use polars::prelude::*;
 use rust_htslib::bam::record::Cigar;
 use rust_htslib::bam::Record;
 
@@ -9,8 +10,8 @@ use crate::mutation::{Mutation, snp::SNP, insertion::Insertion, deletion::Deleti
 
 #[derive(Clone)]
 pub struct Cluster {
-    nt_mutations: Vec<String>,
-    aa_mutations: Vec<String>,
+    nt_mutations: String,
+    aa_mutations: String,
     count: u32,
     max_count: u32,
     frequency: f32,
@@ -21,7 +22,7 @@ pub struct Cluster {
 }
 
 impl Cluster {
-    pub fn new(nt_mutations: Vec<String>, aa_mutations: Vec<String>, coverage_start: u32, coverage_end: u32, mutations_start: u32, mutations_end: u32) -> Self {
+    pub fn new(nt_mutations: String, aa_mutations: String, coverage_start: u32, coverage_end: u32, mutations_start: u32, mutations_end: u32) -> Self {
         Self {
             nt_mutations,
             aa_mutations,
@@ -35,13 +36,13 @@ impl Cluster {
         }
     }
 
-    pub fn nt_mutations(&self) -> String {
-        self.nt_mutations.join(",")
-    }
+    // pub fn nt_mutations(&self) -> &str {
+    //     &self.nt_mutations
+    // }
 
-    pub fn aa_mutations(&self) -> String {
-        self.aa_mutations.join(",")
-    }
+    // pub fn aa_mutations(&self) -> &str {
+    //     &self.aa_mutations
+    // }
 
     // pub fn count(&self) -> u32 {
     //     self.count
@@ -64,8 +65,8 @@ impl fmt::Display for Cluster {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f,
         "{}\t{}\t{}\t{}\t{}\t{}\t{}",
-        self.nt_mutations(),
-        self.aa_mutations(),
+        self.nt_mutations,
+        self.aa_mutations,
         self.count,
         self.max_count,
         self.frequency,
@@ -199,7 +200,6 @@ pub fn call_variants(
                 range.1 = end_pos;
             }
         }
-
     }
     
     
@@ -241,8 +241,8 @@ pub fn call_variants(
     }
 
     Cluster::new(
-        nt_mutations,
-        aa_mutations,
+        nt_mutations.join(","),
+        aa_mutations.join(","),
         range.0, 
         range.1,
         mutations_start,
@@ -250,35 +250,74 @@ pub fn call_variants(
     )
 }
 
+macro_rules! struct_to_dataframe {
+    ($input:expr, [$($field:ident),+]) => {
+        {
+            let len = $input.len().to_owned();
 
-pub fn merge_clusters(clusters: &Vec<Cluster>) -> Vec<Cluster> {
+            // Extract the field values into separate vectors
+            $(let mut $field = Vec::with_capacity(len);)*
 
-    let mut merged_map: HashMap<String, Cluster> = HashMap::new();
-
-    for cluster in clusters {
-        let key = cluster.nt_mutations();
-        if let Some(merged_cluster) = merged_map.get_mut(&key) {
-            // Merge existing clusters
-            merged_cluster.count += cluster.count;
-            merged_cluster.coverage_start = merged_cluster.coverage_start.max(cluster.coverage_start);
-            merged_cluster.coverage_end = merged_cluster.coverage_end.min(cluster.coverage_end);
-        } else {
-            // Add new cluster
-            merged_map.insert(key.clone(), cluster.clone());
-        }
-
-        // Update max_count for read pairs that span the cluster
-        for merged_cluster in merged_map.values_mut() {
-            if cluster.coverage_start <= merged_cluster.mutations_start && cluster.coverage_end >= merged_cluster.mutations_end {
-                merged_cluster.max_count += cluster.count;
+            for e in $input.iter() {
+                $($field.push(e.$field.clone());)*
+            }
+            df! {
+                $(stringify!($field) => $field,)*
             }
         }
-    }
-
-    // Update frequency
-    for merged_cluster in merged_map.values_mut() {
-        merged_cluster.frequency = (merged_cluster.count as f32) / (merged_cluster.max_count as f32);
-    }
-
-    merged_map.into_values().collect()
+    };
 }
+
+pub fn merge_clusters(clusters: &Vec<Cluster>) -> DataFrame {
+    let mut df = match struct_to_dataframe!(clusters,
+        [nt_mutations, aa_mutations, count, max_count, frequency, coverage_start, coverage_end]) {
+        Ok(df) => df,
+        Err(e) => panic!("Error creating DataFrame: {}", e),
+    };
+
+    df = df.lazy()
+            .group_by_stable([col("nt_mutations")])
+        .agg([
+            col("aa_mutations").first().alias("aa_mutations"),
+            col("count").sum().alias("count"),
+            col("max_count").sum().alias("max_count"),
+            col("frequency").mean().alias("frequency"),
+            col("coverage_start").min().alias("coverage_start"),
+            col("coverage_end").max().alias("coverage_end"),
+        ])
+        .collect()
+        .expect("Failed to collect DataFrame");
+    
+    df
+}
+// pub fn merge_clusters(clusters: &Vec<Cluster>) -> Vec<Cluster> {
+
+//     let mut merged_map: HashMap<String, Cluster> = HashMap::new();
+
+//     for cluster in clusters {
+//         let key = cluster.nt_mutations();
+//         if let Some(merged_cluster) = merged_map.get_mut(&key) {
+//             // Merge existing clusters
+//             merged_cluster.count += cluster.count;
+//             merged_cluster.coverage_start = merged_cluster.coverage_start.max(cluster.coverage_start);
+//             merged_cluster.coverage_end = merged_cluster.coverage_end.min(cluster.coverage_end);
+//         } else {
+//             // Add new cluster
+//             merged_map.insert(key.clone(), cluster.clone());
+//         }
+
+//         // Update max_count for read pairs that span the cluster
+//         for merged_cluster in merged_map.values_mut() {
+//             if cluster.coverage_start <= merged_cluster.mutations_start && cluster.coverage_end >= merged_cluster.mutations_end {
+//                 merged_cluster.max_count += cluster.count;
+//             }
+//         }
+//     }
+
+//     // Update frequency
+//     for merged_cluster in merged_map.values_mut() {
+//         merged_cluster.frequency = (merged_cluster.count as f32) / (merged_cluster.max_count as f32);
+//     }
+
+//     merged_map.into_values().collect()
+// }

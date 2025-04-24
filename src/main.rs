@@ -7,8 +7,8 @@ use std::error::Error;
 use clap::Parser;
 use rust_htslib::bam;
 
-use cluster::Cluster;
-use utils::{read_reference, read_annotation, read_pair_generator, call_variants};
+use cluster::{Cluster, call_variants};
+use utils::{read_reference, read_annotation, read_pair_generator};
 
 #[derive(Parser, Debug)]
 #[command(name = "coVar")]
@@ -71,16 +71,11 @@ fn run(args: Cli) -> Result<(), Box<dyn Error>> {
     println!("Done calling variants");
 
     // Aggregate unique clusters
-    let clusters_merged = cluster::merge_clusters(&clusters);
+    let clusters_merged = cluster::merge_clusters(&clusters); //57min
+
+    println!("Done merging clusters");
 
     let mut output = String::new();
-    output.push_str("nt_mutations\taa_mutations\tcount\tmax_count\tfreqeuncy\tstart\tend\n");
-    for cluster in clusters_merged {
-        if cluster.nt_mutations().is_empty() {
-            continue;
-        }
-        output.push_str(&format!("{}\n", cluster));
-    }
 
     if let Some(output_path) = args.output {
         std::fs::write(output_path, output)?;
