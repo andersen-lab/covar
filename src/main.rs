@@ -43,7 +43,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 
-pub fn run(args: Cli) -> Result<(), Box<dyn Error>> {
+fn run(args: Cli) -> Result<(), Box<dyn Error>> {
     let mut bam = bam::IndexedReader::from_path(&args.input_bam)?;
     let reference = read_reference(&args.reference_fasta)?;
     let annotation = read_annotation(&args.annotation_gff)?;
@@ -52,10 +52,10 @@ pub fn run(args: Cli) -> Result<(), Box<dyn Error>> {
     let read_pairs = read_pair_generator(
         &mut bam,
         reference.id(),
-        21563,
-        25384,
-        // 0
-        // reference.seq().len().try_into()? // Whole genome
+        // 21563,
+        // 25384,
+        0,
+        reference.seq().len().try_into()? // Whole genome
     );
 
     println!("Done fetching read pairs");
@@ -74,8 +74,11 @@ pub fn run(args: Cli) -> Result<(), Box<dyn Error>> {
     let clusters_merged = cluster::merge_clusters(&clusters);
 
     let mut output = String::new();
-    output.push_str("nt_mutations\taa_mutations\tcount\tmax_count\tstart\tend\n");
+    output.push_str("nt_mutations\taa_mutations\tcount\tmax_count\tfreqeuncy\tstart\tend\n");
     for cluster in clusters_merged {
+        if cluster.nt_mutations().is_empty() {
+            continue;
+        }
         output.push_str(&format!("{}\n", cluster));
     }
 
