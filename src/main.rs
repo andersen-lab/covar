@@ -3,9 +3,10 @@ mod gene;
 mod mutation;
 mod utils;
 
-use std::error::Error;
+use std::{error::Error, fs::File};
 use clap::Parser;
 use rust_htslib::bam;
+use polars::prelude::*;
 
 use cluster::{Cluster, call_variants};
 use utils::{read_reference, read_annotation, read_pair_generator};
@@ -34,7 +35,7 @@ struct Cli {
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Cli::parse();
 
-    println!("input: {:?}\nreference: {:?}\nannotation: {:?}",
+    eprintln!("input: {:?}\nreference: {:?}\nannotation: {:?}",
     args.input_bam, args.reference_fasta, args.annotation_gff);
 
     run(args)?;
@@ -52,13 +53,12 @@ fn run(args: Cli) -> Result<(), Box<dyn Error>> {
     let read_pairs = read_pair_generator(
         &mut bam,
         reference.id(),
-        // 21563,
-        // 25384,
-        0,
-        reference.seq().len().try_into()? // Whole genome
+        21563,
+        25384,
+        //0,
+        //reference.seq().len().try_into()? // Whole genome
     );
-
-    println!("Done fetching read pairs");
+    eprintln!("Done fetching read pairs");
 
     // Call variants
     let mut clusters = Vec::<Cluster>::new();
@@ -67,20 +67,21 @@ fn run(args: Cli) -> Result<(), Box<dyn Error>> {
         //if variants.len() == 0 { continue; }
         clusters.push(variants);
     }
-
-    println!("Done calling variants");
+    eprintln!("Done calling variants");
 
     // Aggregate unique clusters
-    let clusters_merged = cluster::merge_clusters(&clusters); //57min
+    let mut clusters_merged = cluster::merge_clusters(&clusters);
+    eprintln!("Done merging clusters");
 
-    println!("Done merging clusters");
-
-    let mut output = String::new();
-
-    if let Some(output_path) = args.output {
-        std::fs::write(output_path, output)?;
-    } else {
-        print!("{}", output);
+    if let Some(output_path) = args.output { // Write to file if provided
+        let file = File::create(output_path)?;
+        let mut writer = CsvWriter::new(file);
+        writer.finish(&mut clusters_merged)?;
+    } else { // Print to stdout
+        let mut buffer = Vec::new();
+        let mut writer = CsvWriter::new(&mut buffer);
+        writer.finish(&mut clusters_merged)?;
+        println!("{}", String::from_utf8(buffer)?);
     }
     
     Ok(())

@@ -35,30 +35,6 @@ impl Cluster {
             mutations_end,
         }
     }
-
-    // pub fn nt_mutations(&self) -> &str {
-    //     &self.nt_mutations
-    // }
-
-    // pub fn aa_mutations(&self) -> &str {
-    //     &self.aa_mutations
-    // }
-
-    // pub fn count(&self) -> u32 {
-    //     self.count
-    // }
-
-    // pub fn max_count(&self) -> u32 {
-    //     self.max_count
-    // }
-
-    // pub fn start(&self) -> u32 {
-    //     self.coverage_start
-    // }
-
-    // pub fn end(&self) -> u32 {
-    //     self.coverage_end
-    // }
 }
 
 impl fmt::Display for Cluster {
@@ -241,8 +217,8 @@ pub fn call_variants(
     }
 
     Cluster::new(
-        nt_mutations.join(","),
-        aa_mutations.join(","),
+        nt_mutations.join(" "),
+        aa_mutations.join(" "),
         range.0, 
         range.1,
         mutations_start,
@@ -270,7 +246,7 @@ macro_rules! struct_to_dataframe {
 
 pub fn merge_clusters(clusters: &Vec<Cluster>) -> DataFrame {
     let mut df = match struct_to_dataframe!(clusters,
-        [nt_mutations, aa_mutations, count, max_count, frequency, coverage_start, coverage_end]) {
+        [nt_mutations, count, max_count, frequency, coverage_start, coverage_end]) {
         Ok(df) => df,
         Err(e) => panic!("Error creating DataFrame: {}", e),
     };
@@ -278,7 +254,7 @@ pub fn merge_clusters(clusters: &Vec<Cluster>) -> DataFrame {
     df = df.lazy()
             .group_by_stable([col("nt_mutations")])
         .agg([
-            col("aa_mutations").first().alias("aa_mutations"),
+            //col("aa_mutations").first().alias("aa_mutations"),
             col("count").sum().alias("count"),
             col("max_count").sum().alias("max_count"),
             col("frequency").mean().alias("frequency"),
@@ -287,37 +263,5 @@ pub fn merge_clusters(clusters: &Vec<Cluster>) -> DataFrame {
         ])
         .collect()
         .expect("Failed to collect DataFrame");
-    
     df
 }
-// pub fn merge_clusters(clusters: &Vec<Cluster>) -> Vec<Cluster> {
-
-//     let mut merged_map: HashMap<String, Cluster> = HashMap::new();
-
-//     for cluster in clusters {
-//         let key = cluster.nt_mutations();
-//         if let Some(merged_cluster) = merged_map.get_mut(&key) {
-//             // Merge existing clusters
-//             merged_cluster.count += cluster.count;
-//             merged_cluster.coverage_start = merged_cluster.coverage_start.max(cluster.coverage_start);
-//             merged_cluster.coverage_end = merged_cluster.coverage_end.min(cluster.coverage_end);
-//         } else {
-//             // Add new cluster
-//             merged_map.insert(key.clone(), cluster.clone());
-//         }
-
-//         // Update max_count for read pairs that span the cluster
-//         for merged_cluster in merged_map.values_mut() {
-//             if cluster.coverage_start <= merged_cluster.mutations_start && cluster.coverage_end >= merged_cluster.mutations_end {
-//                 merged_cluster.max_count += cluster.count;
-//             }
-//         }
-//     }
-
-//     // Update frequency
-//     for merged_cluster in merged_map.values_mut() {
-//         merged_cluster.frequency = (merged_cluster.count as f32) / (merged_cluster.max_count as f32);
-//     }
-
-//     merged_map.into_values().collect()
-// }
