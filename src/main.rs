@@ -69,16 +69,13 @@ fn run(args: Cli) -> Result<(), Box<dyn Error>> {
     let mut clusters = Vec::<Cluster>::new();
     for pair in read_pairs {
         let variants = call_variants(pair, &reference, &annotation);
-        pb.inc(1);
-    
-        if variants.len() < 1 {
-            continue;
-        }
         clusters.push(variants);
+        pb.inc(1);
     }
+    pb.finish_and_clear();
 
     // Aggregate unique clusters
-    let mut clusters_merged = cluster::merge_clusters(&clusters, args.min_count);
+    let mut clusters_merged = cluster::merge_clusters(&clusters, &args);
 
     if let Some(output_path) = args.output { // Write to file if provided
         let file = File::create(output_path)?;
