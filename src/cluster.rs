@@ -6,7 +6,7 @@ use polars::prelude::*;
 use rust_htslib::bam::record::Cigar;
 use rust_htslib::bam::Record;
 
-use crate::mutation::{Mutation, snp::SNP, insertion::Insertion, deletion::Deletion};
+use crate::mutation::{deletion::Deletion, insertion::Insertion, snp::SNP, Mutation};
 
 #[derive(Clone)]
 pub struct Cluster {
@@ -58,40 +58,33 @@ pub fn call_variants(
 ) -> Cluster { 
     let (read1, read2) = read_pair;
 
-    if read1.is_none() && read2.is_none() {
-        panic!("Both reads are missing, cannot proceed with variant calling.")
-    }
-    
     // Function to process a single read in the pair
     let process_read = |read: &Record| -> Vec<(Mutation, String)> {
         let mut local_variants: Vec<(Mutation, String)> = Vec::new();
 
         let ref_seq = reference.seq();
-        let ref_seq_len = ref_seq.len() as u32;
 
         let read_seq = String::from_utf8(read.seq().as_bytes().to_vec()).expect("Invalid UTF-8 in read sequence"); // panics
-        let read_seq_len = read_seq.len() as u32;
         let cigar = read.cigar();
 
         let start_pos: u32 = read.pos() as u32;
         let mut read_pos: u32 = 0;
         let mut ref_pos: u32 = start_pos;
 
-        for c in cigar.iter() { // TODO: handle indel offsets
+        for c in cigar.iter() {
             match c {
                 Cigar::Match(len) => { // Call SNPs
-                    for i in 0..*len {
-                        if ref_pos + i < ref_seq_len && read_pos + i < read_seq_len {
-                            let ref_base = ref_seq[(ref_pos + i) as usize] as char;
-                            let read_base = read_seq.chars().nth((read_pos + i) as usize).unwrap();
-                            
-                            if ref_base != read_base && read_base != 'N' {
-                                let snp = SNP::new(ref_pos + i, ref_base, read_base);
-                                if let Some(gene) = snp.get_gene(annotation) {
-                                    let aa_mutation = snp.translate(&read_seq, read_pos, reference, &gene)
-                                        .unwrap_or_else(|| "Unknown".to_string());
-                                    local_variants.push((Mutation::SNP(snp), aa_mutation));                                    
-                                }
+                    for match_idx  in 0..*len {
+
+                        let ref_base = ref_seq[(ref_pos + match_idx) as usize] as char;
+                        let read_base = read_seq.chars().nth((read_pos + match_idx) as usize).unwrap();
+                        
+                        if ref_base != read_base && read_base != 'N' {
+                            let snp = SNP::new(ref_pos + match_idx, ref_base, read_base);
+                            if let Some(gene) = snp.get_gene(annotation) {
+                                let aa_mutation = snp.translate(&read_seq, read_pos + match_idx, reference, &gene)
+                                    .unwrap_or_else(|| "Unknown".to_string());
+                                local_variants.push((Mutation::SNP(snp), aa_mutation));                                    
                             }
                         }
                     }
@@ -99,31 +92,31 @@ pub fn call_variants(
                     ref_pos += len;
                 },
                 Cigar::Ins(len) => { // Call insertions
-                    if ref_pos > 0 && read_pos + *len <= read_seq_len {
-                        let ref_base = ref_seq[(ref_pos - 1) as usize] as char;
-                        let ins_seq = read_seq[(read_pos as usize)..(read_pos as usize + *len as usize)].to_string();
-                        let insertion = Insertion::new(ref_pos - 1, ref_base, ins_seq);
-                        if let Some(gene) = insertion.get_gene(annotation) {
-                            let aa_mutation = insertion.translate(&read_seq, read_pos, reference, &gene)
-                                .unwrap_or_else(|| "Unknown".to_string());
-                            local_variants.push((Mutation::Insertion(insertion), aa_mutation));                                    
-                        }
+                    let ref_base = ref_seq[(ref_pos - 1) as usize] as char;
+                    let ins_seq = read_seq[(read_pos as usize)..(read_pos as usize + *len as usize)].to_string();
+                    let insertion = Insertion::new(ref_pos - 1, ref_base, ins_seq);
+                    if let Some(gene) = insertion.get_gene(annotation) {
+                        let aa_mutation = insertion.translate(&gene)
+                            .unwrap_or_else(|| "Unknown".to_string());
+                        local_variants.push((Mutation::Insertion(insertion), aa_mutation));                                    
                     }
+                    
                     read_pos += len;
                 },
                 Cigar::Del(len) => { // Call deletions
-                    if ref_pos > 0 && ref_pos + *len <= ref_seq_len {
-                        let ref_base = ref_seq[(ref_pos - 1) as usize] as char;
-                        let del_seq = std::str::from_utf8(&ref_seq[(ref_pos as usize)..(ref_pos as usize + *len as usize)])
-                            .expect("Invalid UTF-8 sequence in reference")
-                            .to_string();
-                        let deletion = Deletion::new(ref_pos - 1, ref_base, del_seq);
-                        if let Some(gene) = deletion.get_gene(annotation) {
-                            let aa_mutation = deletion.translate(&read_seq, read_pos, reference, &gene)
-                                .unwrap_or_else(|| "Unknown".to_string());
-                            local_variants.push((Mutation::Deletion(deletion), aa_mutation));                                    
-                        }
+                    let deletion_site = ref_pos - 1;
+
+                    let ref_base = ref_seq[deletion_site as usize] as char;
+                    let del_seq = std::str::from_utf8(&ref_seq[(ref_pos as usize)..(ref_pos as usize + *len as usize)])
+                        .expect("Invalid UTF-8 sequence in reference")
+                        .to_string();
+                    let deletion = Deletion::new(deletion_site, ref_base, del_seq);
+                    if let Some(gene) = deletion.get_gene(annotation) {
+                        let aa_mutation = deletion.translate(&gene)
+                            .unwrap_or_else(|| "Unknown".to_string());
+                        local_variants.push((Mutation::Deletion(deletion), aa_mutation));                                    
                     }
+                    
                     ref_pos += len;
                 },
                 Cigar::SoftClip(len) => {
@@ -177,7 +170,6 @@ pub fn call_variants(
             }
         }
     }
-    
     
     // Basic deduplication - keep unique variants only
     let mut unique_variants = Vec::new();
@@ -244,24 +236,37 @@ macro_rules! struct_to_dataframe {
     };
 }
 
-pub fn merge_clusters(clusters: &Vec<Cluster>) -> DataFrame {
+pub fn merge_clusters(clusters: &[Cluster], min_count: u32) -> DataFrame {
     let mut df = match struct_to_dataframe!(clusters,
-        [nt_mutations, count, max_count, frequency, coverage_start, coverage_end]) {
+        [nt_mutations, aa_mutations, count, max_count, frequency, coverage_start, coverage_end, mutations_start, mutations_end]) {
         Ok(df) => df,
         Err(e) => panic!("Error creating DataFrame: {}", e),
     };
 
+    // // Update max_count for overlapping clusters
+    // for merged_cluster in merged_map.values_mut() {
+    //     if cluster.coverage_start <= merged_cluster.mutations_start && cluster.coverage_end >= merged_cluster.mutations_end {
+    //         merged_cluster.max_count += cluster.count;
+    //     }
+    // }
+    
     df = df.lazy()
             .group_by_stable([col("nt_mutations")])
         .agg([
-            //col("aa_mutations").first().alias("aa_mutations"),
+            col("aa_mutations").first().alias("aa_mutations"),
             col("count").sum().alias("count"),
-            col("max_count").sum().alias("max_count"),
-            col("frequency").mean().alias("frequency"),
-            col("coverage_start").min().alias("coverage_start"),
-            col("coverage_end").max().alias("coverage_end"),
+            //col("max_count").sum().alias("max_count"),
+            //col("frequency").mean().alias("frequency"),
+            col("coverage_start").max().alias("coverage_start"),
+            col("coverage_end").min().alias("coverage_end"),
         ])
         .collect()
-        .expect("Failed to collect DataFrame");
+        .expect("Failed to collect DataFrame"); // panics
+
+    // Filter clusters by min_count
+    df = df.lazy()
+        .filter(col("count").gt(lit(min_count)))
+        .collect()
+        .expect("Failed to collect DataFrame"); // panics
     df
 }

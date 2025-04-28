@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use bio_seq::prelude::*;
 use bio_seq::translation::STANDARD;
 use bio_seq::translation::TranslationTable;
-use bio::io::fasta;
 
 use crate::gene::Gene;
 
@@ -48,12 +47,12 @@ impl Insertion {
         None
     }
 
-    pub fn translate(&self, read: &str, read_pos: u32, reference: &fasta::Record, gene: &Gene) -> Option<String> {
-        let codon_pos = (self.pos - gene.get_start()) / 3;
+    pub fn translate(&self, gene: &Gene) -> Option<String> {
         
-        // check if insertion is in frame
         let insertion_seq = self.alt_sequence.as_bytes();
         if insertion_seq.len() % 3 != 0 { return None }
+        
+        let codon_pos = (self.pos + insertion_seq.len() as u32 - gene.get_start()) / 3;
 
         let alt_codon: Seq<Dna> = match insertion_seq.try_into() {
             Ok(codon) => codon,
@@ -66,7 +65,7 @@ impl Insertion {
             .collect::<Seq<Amino>>()
             .to_string();
 
-        let translated = format!("{}:INS{}{}", gene.get_name(), codon_pos + 1, aa_insertion);
+        let translated = format!("{}:INS{}{}", gene.get_name(), codon_pos, aa_insertion);
 
         Some(translated)
     }

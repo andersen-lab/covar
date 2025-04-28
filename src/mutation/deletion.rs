@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use bio::io::fasta;
-
 use crate::gene::Gene;
 
 
@@ -46,18 +44,19 @@ impl Deletion {
         None
     }
     
-    pub fn translate(&self, read: &str, read_pos: u32, reference: &fasta::Record, gene: &Gene) -> Option<String> {
-        let codon_pos = (self.pos - gene.get_start()) / 3;
+    pub fn translate(&self, gene: &Gene) -> Option<String> {
         
         // check if deletion is in frame
         let deletion_seq = self.alt_sequence.as_bytes();
-        if deletion_seq.len() % 3 != 0 { return None }
+        if deletion_seq.len() % 3 != 0 { return None } // not in frame
         let deletion_aa_len = (deletion_seq.len() / 3) as u32;
 
+        let codon_pos = (self.pos + deletion_seq.len() as u32 - gene.get_start()) / 3;
+
         let translated = if deletion_aa_len > 1 {
-            format!("{}:DEL{}/{}", gene.get_name(), codon_pos + 1, codon_pos + deletion_aa_len + 1)
+            format!("{}:DEL{}/{}", gene.get_name(), codon_pos, codon_pos + deletion_aa_len - 1)
         } else {
-            format!("{}:DEL{}", gene.get_name(), codon_pos + 1)
+            format!("{}:DEL{}", gene.get_name(), codon_pos)
         };
 
         Some(translated)

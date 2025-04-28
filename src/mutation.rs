@@ -25,37 +25,6 @@ impl Mutation {
             Mutation::Deletion(del) => del.get_position(),
         }
     }
-
-    pub fn get_reference_base(&self) -> char {
-        match self {
-            Mutation::SNP(snp) => snp.get_reference_base(),
-            Mutation::Insertion(ins) => ins.get_reference_base(),
-            Mutation::Deletion(del) => del.get_reference_base(),
-        }
-    }
-    pub fn get_alternate_base(&self) -> String {
-        match self {
-            Mutation::SNP(snp) => snp.get_alternate_base(),
-            Mutation::Insertion(ins) => ins.get_alternate_base(),
-            Mutation::Deletion(del) => del.get_alternate_base(),
-        }
-    }
-
-    pub fn get_gene(&self, annotation: &HashMap<(u32, u32), String>) -> Option<Gene> {
-        match self {
-            Mutation::SNP(snp) => snp.get_gene(annotation),
-            Mutation::Insertion(ins) => ins.get_gene(annotation),
-            Mutation::Deletion(del) => del.get_gene(annotation),
-        }
-    }
-
-    pub fn translate(&self, read: &str, read_pos: u32, reference: &fasta::Record, gene: &Gene) -> Option<String> {
-        match self {
-            Mutation::SNP(snp) => snp.translate(read, read_pos, reference, gene),
-            Mutation::Insertion(ins) => ins.translate(read, read_pos, reference, gene),
-            Mutation::Deletion(del) => del.translate(read, read_pos, reference, gene),
-        }
-    }
 }
 
 impl fmt::Display for Mutation {

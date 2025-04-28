@@ -53,8 +53,8 @@ impl SNP {
         let codon_pos = (self.pos - gene.get_start()) / 3;
 
         // handle codon spanning reads
-        if read_pos < codon_phase + 1 { return None }
-        if read_pos + codon_phase  > read.len() as u32 { return None }
+        if read_pos as i32 - codon_phase as i32 - 1 < 0 { return None }
+        if read_pos - codon_phase + 2  > read.len() as u32 { return None }
 
         let ref_start_pos = (self.pos - codon_phase - 1) as usize;
         let ref_end_pos = (self.pos - codon_phase + 2) as usize;
@@ -70,12 +70,8 @@ impl SNP {
             Ok(codon) => codon,
             Err(_) => return None,
         };
-        // let debug_ref_segment = std::str::from_utf8(&reference.seq()[ref_start_pos..ref_end_pos]).unwrap_or_default();
-        // let debug_mut = self.to_string();
-        // let debug_ref_codon = ref_codon.to_string();
-        // let debug_alt_codon = alt_codon.to_string();
-        let alt_aa = STANDARD.to_amino(&alt_codon).to_string();
 
+        let alt_aa = STANDARD.to_amino(&alt_codon).to_string();
         let translated = format!("{}:{}{}{}", gene.get_name(), ref_aa, codon_pos + 1, alt_aa);
 
         Some(translated)
