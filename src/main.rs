@@ -31,7 +31,7 @@ struct Cli {
     /// Optional output file path. If not provided, output will be printed to stdout.
     pub output: Option<std::path::PathBuf>,
 
-    #[arg(short = 'm', long = "min-count", default_value_t = 1)]
+    #[arg(short = 'c', long = "min-count", default_value_t = 1)]
     /// Minimum occurrences to include a cluster in output.
     pub min_count: u32,
 }
@@ -62,25 +62,29 @@ fn run(args: Cli) -> Result<(), Box<dyn Error>> {
         // 0,
         // reference.seq().len().try_into()? // Whole genome
     );
-    eprintln!("Done fetching read pairs");
 
     // Call variants
+    eprintln!("Calling variants...");
+    let pb = indicatif::ProgressBar::new(read_pairs.len() as u64);
     let mut clusters = Vec::<Cluster>::new();
     for pair in read_pairs {
         let variants = call_variants(pair, &reference, &annotation);
+        pb.inc(1);
+    
+        if variants.len() < 1 {
+            continue;
+        }
         clusters.push(variants);
     }
-    eprintln!("Done calling variants");
 
     // Aggregate unique clusters
     let mut clusters_merged = cluster::merge_clusters(&clusters, args.min_count);
-    eprintln!("Done merging clusters");
 
     if let Some(output_path) = args.output { // Write to file if provided
         let file = File::create(output_path)?;
         let mut writer = CsvWriter::new(file);
         writer.finish(&mut clusters_merged)?;
-    } else { // Print to stdout
+    } else { // Write to stdout
         let mut buffer = Vec::new();
         let mut writer = CsvWriter::new(&mut buffer);
         writer.finish(&mut clusters_merged)?;
