@@ -6,7 +6,7 @@ use polars::prelude::*;
 use rust_htslib::bam::record::Cigar;
 use rust_htslib::bam::Record;
 
-use crate::mutation::{deletion::Deletion, insertion::Insertion, snp::SNP, Mutation};
+use crate::{mutation::{deletion::Deletion, insertion::Insertion, snp::SNP, Mutation}, Cli};
 
 #[derive(Clone)]
 pub struct Cluster {
@@ -236,7 +236,7 @@ macro_rules! struct_to_dataframe {
     };
 }
 
-pub fn merge_clusters(clusters: &[Cluster], min_count: u32) -> DataFrame {
+pub fn merge_clusters(clusters: &[Cluster], args: &Cli) -> DataFrame {
     let mut df = match struct_to_dataframe!(clusters,
         [nt_mutations, aa_mutations, count, max_count, frequency, coverage_start, coverage_end, mutations_start, mutations_end]) {
         Ok(df) => df,
@@ -265,7 +265,7 @@ pub fn merge_clusters(clusters: &[Cluster], min_count: u32) -> DataFrame {
 
     // Filter clusters by min_count
     df = df.lazy()
-        .filter(col("count").gt(lit(min_count)))
+        .filter(col("count").gt(lit(args.min_count)))
         .collect()
         .expect("Failed to collect DataFrame"); // panics
     df

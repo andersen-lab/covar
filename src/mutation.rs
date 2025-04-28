@@ -2,9 +2,7 @@ pub mod snp;
 pub mod insertion;
 pub mod deletion;
 
-use bio::io::fasta;
-use std::{collections::HashMap, fmt};
-use crate::gene::Gene;
+use std::fmt;
 
 pub use snp::SNP;
 pub use insertion::Insertion;
