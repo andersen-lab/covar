@@ -13,8 +13,6 @@ pub struct Cluster {
     nt_mutations: String,
     aa_mutations: String,
     count: u32,
-    max_count: u32,
-    frequency: f32,
     coverage_start: u32,
     coverage_end: u32,
     mutations_start: u32,
@@ -27,8 +25,6 @@ impl Cluster {
             nt_mutations,
             aa_mutations,
             count: 1,
-            max_count: 1,
-            frequency: 1.0,
             coverage_start,
             coverage_end,
             mutations_start,
@@ -40,12 +36,10 @@ impl Cluster {
 impl fmt::Display for Cluster {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f,
-        "{}\t{}\t{}\t{}\t{}\t{}\t{}",
+        "{}\t{}\t{}\t{}\t{}",
         self.nt_mutations,
         self.aa_mutations,
         self.count,
-        self.max_count,
-        self.frequency,
         self.coverage_start,
         self.coverage_end)
     }
@@ -238,26 +232,21 @@ macro_rules! struct_to_dataframe {
 
 pub fn merge_clusters(clusters: &[Cluster], args: &Cli) -> DataFrame {
     let mut df = match struct_to_dataframe!(clusters,
-        [nt_mutations, aa_mutations, count, max_count, frequency, coverage_start, coverage_end, mutations_start, mutations_end]) {
+        [nt_mutations, aa_mutations, count, coverage_start, coverage_end, mutations_start, mutations_end]) {
         Ok(df) => df,
         Err(e) => panic!("Error creating DataFrame: {}", e),
     };
 
-    // // Update max_count for overlapping clusters
-    // for merged_cluster in merged_map.values_mut() {
-    //     if cluster.coverage_start <= merged_cluster.mutations_start && cluster.coverage_end >= merged_cluster.mutations_end {
-    //         merged_cluster.max_count += cluster.count;
-    //     }
-    // }
+
     
     df = df.lazy()
             .group_by_stable([col("nt_mutations")])
         .agg([
             col("aa_mutations").first().alias("aa_mutations"),
             col("count").sum().alias("count"),
-            //col("max_count").sum().alias("max_count"),
-            //col("frequency").mean().alias("frequency"),
             col("coverage_start").max().alias("coverage_start"),
+            col("mutations_start").max().alias("mutations_start"),
+            col("mutations_end").min().alias("mutations_end"),
             col("coverage_end").min().alias("coverage_end"),
         ])
         .collect()
