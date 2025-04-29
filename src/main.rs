@@ -57,10 +57,10 @@ fn run(args: Cli) -> Result<(), Box<dyn Error>> {
     let read_pairs = read_pair_generator(
         &mut bam,
         reference.id(),
-        21563,
-        25384,
-        // 0,
-        // reference.seq().len().try_into()? // Whole genome
+        // 21563,
+        // 25384,
+        0,
+        reference.seq().len().try_into()? // Whole genome
     );
 
     // Call variants
@@ -75,7 +75,7 @@ fn run(args: Cli) -> Result<(), Box<dyn Error>> {
     pb.finish_and_clear();
 
     // Aggregate unique clusters
-    let mut clusters_merged = cluster::merge_clusters(&clusters, &args);
+    let mut clusters_merged = cluster::merge_clusters(&clusters, &args)?;
 
     if let Some(output_path) = args.output { // Write to file if provided
         let file = File::create(output_path)?;

@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{error::Error, fmt};
 use std::collections::HashMap;
 
 use bio::io::fasta;
@@ -230,32 +230,24 @@ macro_rules! struct_to_dataframe {
     };
 }
 
-pub fn merge_clusters(clusters: &[Cluster], args: &Cli) -> DataFrame {
-    let mut df = match struct_to_dataframe!(clusters,
-        [nt_mutations, aa_mutations, count, coverage_start, coverage_end, mutations_start, mutations_end]) {
-        Ok(df) => df,
-        Err(e) => panic!("Error creating DataFrame: {}", e),
-    };
-
-
-    
-    df = df.lazy()
-            .group_by_stable([col("nt_mutations")])
+pub fn merge_clusters(clusters: &[Cluster], args: &Cli) -> Result<DataFrame, Box<dyn Error>> {
+    let df = match struct_to_dataframe!(clusters,
+            [nt_mutations, aa_mutations, count, coverage_start, coverage_end, mutations_start, mutations_end]) {
+            Ok(df) => df.lazy(),
+            Err(e) => panic!("Error creating DataFrame: {}", e),
+        };
+        
+    let df = df
+        .group_by_stable([col("nt_mutations")])
         .agg([
             col("aa_mutations").first().alias("aa_mutations"),
             col("count").sum().alias("count"),
             col("coverage_start").max().alias("coverage_start"),
-            col("mutations_start").max().alias("mutations_start"),
-            col("mutations_end").min().alias("mutations_end"),
+            // col("mutations_start").max().alias("mutations_start"),
+            // col("mutations_end").min().alias("mutations_end"),
             col("coverage_end").min().alias("coverage_end"),
         ])
-        .collect()
-        .expect("Failed to collect DataFrame"); // panics
-
-    // Filter clusters by min_count
-    df = df.lazy()
-        .filter(col("count").gt(lit(args.min_count)))
-        .collect()
-        .expect("Failed to collect DataFrame"); // panics
-    df
+        .filter(col("count").gt(lit(args.min_count)))// Filter by CLI thresholds
+        .collect()?;
+    Ok(df)
 }
