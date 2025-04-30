@@ -13,6 +13,7 @@ pub struct Cluster {
     nt_mutations: String,
     aa_mutations: String,
     count: u32,
+    max_count: u32,
     coverage_start: u32,
     coverage_end: u32,
     mutations_start: u32,
@@ -20,11 +21,12 @@ pub struct Cluster {
 }
 
 impl Cluster {
-    pub fn new(nt_mutations: String, aa_mutations: String, coverage_start: u32, coverage_end: u32, mutations_start: u32, mutations_end: u32) -> Self {
+    pub fn new(nt_mutations: String, aa_mutations: String, max_count: u32, coverage_start: u32, coverage_end: u32, mutations_start: u32, mutations_end: u32) -> Self {
         Self {
             nt_mutations,
             aa_mutations,
             count: 1,
+            max_count,
             coverage_start,
             coverage_end,
             mutations_start,
@@ -48,7 +50,8 @@ impl fmt::Display for Cluster {
 pub fn call_variants(
     read_pair: (Option<Record>, Option<Record>),
     reference: &fasta::Record,
-    annotation: &HashMap<(u32, u32), String>
+    annotation: &HashMap<(u32, u32), String>,
+    coverage_map: &Vec<u32>,
 ) -> Cluster { 
     let (read1, read2) = read_pair;
 
@@ -202,9 +205,18 @@ pub fn call_variants(
         }
     }
 
+    // Get min value in coverage_map between range
+    let mut min_coverage = u32::MAX;
+    for i in range.0..range.1 {
+        if coverage_map[i as usize] < min_coverage {
+            min_coverage = coverage_map[i as usize];
+        }
+    }
+
     Cluster::new(
         nt_mutations.join(" "),
         aa_mutations.join(" "),
+        min_coverage,
         range.0, 
         range.1,
         mutations_start,
@@ -232,7 +244,7 @@ macro_rules! struct_to_dataframe {
 
 pub fn merge_clusters(clusters: &[Cluster], args: &Cli) -> Result<DataFrame, Box<dyn Error>> {
     let df = match struct_to_dataframe!(clusters,
-            [nt_mutations, aa_mutations, count, coverage_start, coverage_end, mutations_start, mutations_end]) {
+            [nt_mutations, aa_mutations, count, max_count, coverage_start, coverage_end, mutations_start, mutations_end]) {
             Ok(df) => df.lazy(),
             Err(e) => panic!("Error creating DataFrame: {}", e),
         };
@@ -242,9 +254,8 @@ pub fn merge_clusters(clusters: &[Cluster], args: &Cli) -> Result<DataFrame, Box
         .agg([
             col("aa_mutations").first().alias("aa_mutations"),
             col("count").sum().alias("count"),
+            col("max_count").max().alias("max_count"),
             col("coverage_start").max().alias("coverage_start"),
-            // col("mutations_start").max().alias("mutations_start"),
-            // col("mutations_end").min().alias("mutations_end"),
             col("coverage_end").min().alias("coverage_end"),
         ])
         .filter(col("count").gt(lit(args.min_count)))// Filter by CLI thresholds

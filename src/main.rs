@@ -5,11 +5,11 @@ mod utils;
 
 use std::{error::Error, fs::File};
 use clap::Parser;
-use rust_htslib::bam;
+use rust_htslib::bam::{self, Read};
 use polars::prelude::*;
 
 use cluster::{Cluster, call_variants};
-use utils::{read_reference, read_annotation, read_pair_generator};
+use utils::{read_reference, read_annotation, read_pair_generator, get_coverage_map};
 
 #[derive(Parser, Debug)]
 #[command(name = "coVar")]
@@ -62,13 +62,16 @@ fn run(args: Cli) -> Result<(), Box<dyn Error>> {
         0,
         reference.seq().len().try_into()? // Whole genome
     );
+        
+    let coverage_map = get_coverage_map(&read_pairs, reference.seq().len() as u32);
+
 
     // Call variants
     eprintln!("Calling variants...");
     let pb = indicatif::ProgressBar::new(read_pairs.len() as u64);
     let mut clusters = Vec::<Cluster>::new();
     for pair in read_pairs {
-        let variants = call_variants(pair, &reference, &annotation);
+        let variants = call_variants(pair, &reference, &annotation, &coverage_map);
         clusters.push(variants);
         pb.inc(1);
     }

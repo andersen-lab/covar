@@ -82,4 +82,31 @@ pub fn read_pair_generator(
     read_pairs.into_iter().map(|(_, pair)| pair).collect()
 }
 
+pub fn get_coverage_map(read_pairs: &[(Option<Record>, Option<Record>)], length: u32) -> Vec<u32> {
+    let mut coverage_map = vec![0; length as usize];
 
+    for (read1, read2) in read_pairs.iter() {
+        let mut covered_positions = std::collections::HashSet::new();
+
+        if let Some(record) = read1 {
+            let start = record.pos() as usize;
+            let end = record.cigar().end_pos() as usize;
+            for i in start..end {
+                covered_positions.insert(i);
+            }
+        }
+        if let Some(record) = read2 {
+            let start = record.pos() as usize;
+            let end = record.cigar().end_pos() as usize;
+            for i in start..end {
+                covered_positions.insert(i);
+            }
+        }
+
+        for pos in covered_positions {
+            coverage_map[pos] += 1;
+        }
+    }
+
+    coverage_map
+}
