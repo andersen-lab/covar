@@ -254,11 +254,12 @@ pub fn merge_clusters(clusters: &[Cluster], args: &Cli) -> Result<DataFrame, Box
         .agg([
             col("aa_mutations").first().alias("aa_mutations"),
             col("count").sum().alias("count"),
-            col("max_count").max().alias("max_count"),
+            //col("max_count").max().alias("max_count"),
             col("coverage_start").max().alias("coverage_start"),
             col("coverage_end").min().alias("coverage_end"),
         ])
-        .filter(col("count").gt(lit(args.min_count)))// Filter by CLI thresholds
+        .filter(col("count").gt(lit(args.min_count)))// min_count
+        .filter(col("nt_mutations").ne(&lit("")).into()) // remove empty clusters
         .collect()?;
     Ok(df)
 }
