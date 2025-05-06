@@ -5,15 +5,14 @@ mod utils;
 
 use std::{error::Error, fs::File};
 use clap::Parser;
-use rust_htslib::bam::{self, Read};
+use rust_htslib::bam;
 use polars::prelude::*;
 
 use cluster::{Cluster, call_variants};
 use utils::{read_reference, read_annotation, read_pair_generator, get_coverage_map};
 
 #[derive(Parser, Debug)]
-#[command(name = "coVar")]
-#[command(version, about)]
+#[command(name = "coVar", version, about)]
 struct Cli {
     #[arg(short = 'i', long = "input")] // Add stdin support?
     /// Input BAM file (must be primer trimmed, sorted and indexed).
@@ -31,13 +30,31 @@ struct Cli {
     /// Optional output file path. If not provided, output will be printed to stdout.
     pub output: Option<std::path::PathBuf>,
 
+    #[arg(short = 's', long = "start_site", default_value_t = 0)]
+    /// Genomic start site for variant calling. Default is 0.
+    pub start_site: u32,
+
+    #[arg(short = 'e', long = "end_site")]
+    /// Genomic end site for variant calling. Default is the length of the reference genome.
+    pub end_site: Option<u32>,
+
     #[arg(short = 'c', long = "min-count", default_value_t = 1)]
     /// Minimum occurrences to include a cluster in output.
     pub min_count: u32,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let args = Cli::parse();
+    let mut args = Cli::parse();
+
+    if args.end_site.is_none() {
+        // Set end site to the length of the reference genome if not provided
+        let reference = read_reference(&args.reference_fasta)?;
+        args.end_site = Some(reference.seq().len() as u32);
+    } else if let Some(end_site) = args.end_site {
+        if end_site < args.start_site {
+            return Err("End site must be greater than or equal to start site.".into());
+        }
+    }
 
     eprintln!("input: {:?}\nreference: {:?}\nannotation: {:?}",
     args.input_bam, args.reference_fasta, args.annotation_gff);
@@ -57,10 +74,8 @@ fn run(args: Cli) -> Result<(), Box<dyn Error>> {
     let read_pairs = read_pair_generator(
         &mut bam,
         reference.id(),
-        // 21563,
-        // 25384,
-        0,
-        reference.seq().len().try_into()? // Whole genome
+        args.start_site,
+        args.end_site.unwrap() // Whole genome
     );
         
     let coverage_map = get_coverage_map(&read_pairs, reference.seq().len() as u32);

@@ -34,8 +34,8 @@ pub fn read_annotation(path: &PathBuf) -> Result<HashMap<(u32, u32), String>, Bo
 pub fn read_pair_generator(
     bam: & mut IndexedReader,
     refname: &str,
-    min_site: i64,
-    max_site: i64,) -> Vec<(Option<Record>, Option<Record>)> {
+    min_site: u32,
+    max_site: u32,) -> Vec<(Option<Record>, Option<Record>)> {
 
     let tid = match bam.header().tid(refname.as_bytes())
             .ok_or_else(|| std::io::Error::new(
