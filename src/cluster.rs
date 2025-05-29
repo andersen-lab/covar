@@ -174,7 +174,7 @@ pub fn call_variants(
     
     for (var, aa_mut) in variants {
         let var_str = var.to_string();
-        if !seen_variants.contains(&var_str) {
+        if !seen_variants.contains(&var_str) && !var_str.is_empty() {
             seen_variants.insert(var_str);
             unique_variants.push((var, aa_mut));
         }
@@ -284,7 +284,7 @@ pub fn merge_clusters(clusters: &[Cluster], args: &Cli) -> Result<DataFrame, Box
             col("coverage_end").min().alias("coverage_end"),
         ]) // Filter by CLI parameters
         .filter(col("count").gt(lit(args.min_count))) 
-        .filter(col("nt_mutations").ne(&lit("")).into()) // remove empty clusters (reference sequence)
+        .filter(col("max_count").gt(lit(0)))
         .collect()?;
     Ok(df)
 }
