@@ -51,7 +51,7 @@ pub fn call_variants(
     read_pair: (Option<Record>, Option<Record>),
     reference: &fasta::Record,
     annotation: &HashMap<(u32, u32), String>,
-    coverage_map: &Vec<u32>,
+    coverage_map: &[(u32, u32)],
 ) -> Cluster { 
     let (read1, read2) = read_pair;
 
@@ -205,23 +205,48 @@ pub fn call_variants(
         }
     }
 
-    // Get min value in coverage_map between range
-    let mut min_coverage = u32::MAX;
-    for i in range.0..range.1 {
-        if coverage_map[i as usize] < min_coverage {
-            min_coverage = coverage_map[i as usize];
-        }
-    }
+    let max_count = get_max_count(
+        (mutations_start, mutations_end),
+        coverage_map
+    );
 
     Cluster::new(
         nt_mutations.join(" "),
         aa_mutations.join(" "),
-        min_coverage,
+        max_count,
         range.0, 
         range.1,
         mutations_start,
         mutations_end,
     )
+}
+
+fn get_max_count(mut_range: (u32, u32), coverages: &[(u32, u32)]) -> u32 {
+    // coverages is sorted by start
+    let (mut_start, mut_end) = mut_range;
+    let mut max_count = 0;
+
+    // Use binary search to find the first coverage whose end >= start_range
+    let start_idx = match coverages.binary_search_by(|&(_, end)| {
+        if end < mut_start {
+            std::cmp::Ordering::Less
+        } else {
+            std::cmp::Ordering::Greater
+        }
+    }) {
+        Ok(idx) | Err(idx) => idx,
+    };
+
+    // Iterate from start_idx, stop when start > end_range
+    for &(start, end) in &coverages[start_idx..] {
+        if start > mut_end {
+            break;
+        }
+        if start <= mut_start && end >= mut_end {
+            max_count += 1;
+        }
+    }
+    max_count
 }
 
 macro_rules! struct_to_dataframe {
@@ -254,12 +279,12 @@ pub fn merge_clusters(clusters: &[Cluster], args: &Cli) -> Result<DataFrame, Box
         .agg([
             col("aa_mutations").first().alias("aa_mutations"),
             col("count").sum().alias("count"),
-            //col("max_count").max().alias("max_count"),
+            col("max_count").max().alias("max_count"),
             col("coverage_start").max().alias("coverage_start"),
             col("coverage_end").min().alias("coverage_end"),
-        ])
-        .filter(col("count").gt(lit(args.min_count)))// min_count
-        .filter(col("nt_mutations").ne(&lit("")).into()) // remove empty clusters
+        ]) // Filter by CLI parameters
+        .filter(col("count").gt(lit(args.min_count))) 
+        .filter(col("nt_mutations").ne(&lit("")).into()) // remove empty clusters (reference sequence)
         .collect()?;
     Ok(df)
 }

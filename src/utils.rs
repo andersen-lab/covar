@@ -79,34 +79,25 @@ pub fn read_pair_generator(
         }
     }
 
-    read_pairs.into_iter().map(|(_, pair)| pair).collect()
+    read_pairs.into_values().collect()
 }
 
-pub fn get_coverage_map(read_pairs: &[(Option<Record>, Option<Record>)], length: u32) -> Vec<u32> {
-    let mut coverage_map = vec![0; length as usize];
+pub fn get_coverage_map(read_pairs: &[(Option<Record>, Option<Record>)]) -> Vec<(u32, u32)> { // index by position, only access positions that are covered by reads
+    let mut coverage_map = Vec::new();
 
     for (read1, read2) in read_pairs.iter() {
-        let mut covered_positions = std::collections::HashSet::new();
-
-        if let Some(record) = read1 {
-            let start = record.pos() as usize;
-            let end = record.cigar().end_pos() as usize;
-            for i in start..end {
-                covered_positions.insert(i);
-            }
-        }
-        if let Some(record) = read2 {
-            let start = record.pos() as usize;
-            let end = record.cigar().end_pos() as usize;
-            for i in start..end {
-                covered_positions.insert(i);
-            }
-        }
-
-        for pos in covered_positions {
-            coverage_map[pos] += 1;
+        let coverage_range = match (read1, read2) {
+            (Some(r1), Some(r2)) => (r1.pos() as u32, r2.cigar().end_pos() as u32),
+            (Some(r1), None) => (r1.pos() as u32, r1.cigar().end_pos() as u32),
+            (None, Some(r2)) => (r2.pos() as u32, r2.cigar().end_pos() as u32),
+            (None, None) => continue,
+        };
+        if coverage_range.0 < coverage_range.1 {
+            coverage_map.push(coverage_range);
         }
     }
+    // Sort the coverage map by start position
+    coverage_map.sort_by_key(|&(start, _)| start);
 
     coverage_map
 }

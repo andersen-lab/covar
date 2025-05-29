@@ -1,5 +1,5 @@
 # coVar
-coVar is a tool for detecting physically-linked variants in genomic data. Given a sorted, indexed BAM file, reference genome and gene annotation, coVar identifies and counts reads with unique physically linked variants.
+coVar is a tool for detecting physically-linked mutations in genomic data. Given a sorted, indexed BAM file, reference genome and gene annotation, coVar identifies and counts sequencing reads with unique physically linked mutations.
 
 ## Installation
 

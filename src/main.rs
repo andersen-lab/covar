@@ -14,7 +14,7 @@ use utils::{read_reference, read_annotation, read_pair_generator, get_coverage_m
 #[derive(Parser, Debug)]
 #[command(name = "coVar", version, about)]
 struct Cli {
-    #[arg(short = 'i', long = "input")] // Add stdin support?
+    #[arg(short = 'i', long = "input")] // Add stdin support
     /// Input BAM file (must be primer trimmed, sorted and indexed).
     pub input_bam: std::path::PathBuf,
 
@@ -38,8 +38,8 @@ struct Cli {
     /// Genomic end site for variant calling. Default is the length of the reference genome.
     pub end_site: Option<u32>,
 
-    #[arg(short = 'c', long = "min-count", default_value_t = 1)]
-    /// Minimum occurrences to include a cluster in output.
+    #[arg(short = 'c', long = "min_count", default_value_t = 1)]
+    /// Minimum occurrences to include a cluster in output. Default is 1.
     pub min_count: u32,
 }
 
@@ -78,7 +78,7 @@ fn run(args: Cli) -> Result<(), Box<dyn Error>> {
         args.end_site.unwrap() // Whole genome
     );
         
-    let coverage_map = get_coverage_map(&read_pairs, reference.seq().len() as u32);
+    let coverage_map = get_coverage_map(&read_pairs);
 
 
     // Call variants
