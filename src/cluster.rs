@@ -282,9 +282,17 @@ pub fn merge_clusters(clusters: &[Cluster], args: &Cli) -> Result<DataFrame, Box
             col("max_count").max().alias("max_count"),
             col("coverage_start").max().alias("coverage_start"),
             col("coverage_end").min().alias("coverage_end"),
-        ]) // Filter by CLI parameters
+        ])
+        // Filter by CLI parameters
         .filter(col("count").gt(lit(args.min_count))) 
         .filter(col("max_count").gt(lit(0)))
+        // Calculate frequency column
+        .with_column((col("count").cast(DataType::Float64) / col("max_count").cast(DataType::Float64)).alias("frequency"))
         .collect()?;
+
+    // Reorder columms
+    let df = df.select(["nt_mutations", "aa_mutations", "count", "max_count", "frequency", "coverage_start", "coverage_end"])?
+        .sort(["frequency"], SortMultipleOptions::default().with_order_descending(true))?;
+    
     Ok(df)
-}
+    }

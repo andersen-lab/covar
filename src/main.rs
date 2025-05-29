@@ -97,11 +97,13 @@ fn run(args: Cli) -> Result<(), Box<dyn Error>> {
 
     if let Some(output_path) = args.output { // Write to file if provided
         let file = File::create(output_path)?;
-        let mut writer = CsvWriter::new(file);
+        let mut writer = CsvWriter::new(file)
+            .with_separator(b'\t');
         writer.finish(&mut clusters_merged)?;
     } else { // Write to stdout
         let mut buffer = Vec::new();
-        let mut writer = CsvWriter::new(&mut buffer);
+        let mut writer = CsvWriter::new(&mut buffer)
+            .with_separator(b'\t');
         writer.finish(&mut clusters_merged)?;
         println!("{}", String::from_utf8(buffer)?);
     }
