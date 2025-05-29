@@ -82,19 +82,37 @@ pub fn read_pair_generator(
     read_pairs.into_values().collect()
 }
 
-pub fn get_coverage_map(read_pairs: &[(Option<Record>, Option<Record>)]) -> Vec<(u32, u32)> { // index by position, only access positions that are covered by reads
+pub fn get_coverage_map(read_pairs: &[(Option<Record>, Option<Record>)]) -> Vec<(u32, u32)> {
     let mut coverage_map = Vec::new();
 
     for (read1, read2) in read_pairs.iter() {
         let coverage_range = match (read1, read2) {
-            (Some(r1), Some(r2)) => (r1.pos() as u32, r2.cigar().end_pos() as u32),
-            (Some(r1), None) => (r1.pos() as u32, r1.cigar().end_pos() as u32),
-            (None, Some(r2)) => (r2.pos() as u32, r2.cigar().end_pos() as u32),
+            (Some(r1), Some(r2)) => {
+                let positions = [r1.pos(), r1.cigar().end_pos(), r2.pos(), r2.cigar().end_pos()];
+                let min_pos = *positions.iter().min().unwrap();
+                let max_pos = *positions.iter().max().unwrap();
+                (Some(min_pos), Some(max_pos))
+            },
+            (Some(r1), None) => {
+                let positions = [r1.pos(), r1.cigar().end_pos()];
+                let min_pos = *positions.iter().min().unwrap();
+                let max_pos = *positions.iter().max().unwrap();
+                (Some(min_pos), Some(max_pos))
+            },
+            (None, Some(r2)) => {
+                let positions = [r2.pos(), r2.cigar().end_pos()];
+                let min_pos = *positions.iter().min().unwrap();
+                let max_pos = *positions.iter().max().unwrap();
+                (Some(min_pos), Some(max_pos))
+            },
             (None, None) => continue,
         };
-        if coverage_range.0 < coverage_range.1 {
-            coverage_map.push(coverage_range);
-        }
+        // unwrap options and convert to u32
+        let coverage_range = match (coverage_range.0, coverage_range.1) {
+            (Some(start), Some(end)) => (start as u32, end as u32),
+            _ => continue, // Skip if either start or end is None
+        };
+        coverage_map.push(coverage_range);
     }
     // Sort the coverage map by start position
     coverage_map.sort_by_key(|&(start, _)| start);

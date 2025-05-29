@@ -82,8 +82,8 @@ fn run(args: Cli) -> Result<(), Box<dyn Error>> {
 
 
     // Call variants
-    eprintln!("Calling variants...");
     let pb = indicatif::ProgressBar::new(read_pairs.len() as u64);
+    pb.set_message("Calling variants");
     let mut clusters = Vec::<Cluster>::new();
     for pair in read_pairs {
         let variants = call_variants(pair, &reference, &annotation, &coverage_map);
