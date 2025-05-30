@@ -3,8 +3,11 @@ mod gene;
 mod mutation;
 mod utils;
 
+use std::sync::{Arc, Mutex};
+use std::{thread, vec};
 use std::{error::Error, fs::File};
 use clap::Parser;
+use indicatif::ProgressBar;
 use rust_htslib::bam;
 use polars::prelude::*;
 
@@ -41,6 +44,10 @@ struct Cli {
     #[arg(short = 'c', long = "min_count", default_value_t = 1)]
     /// Minimum occurrences to include a cluster in output. Default is 1.
     pub min_count: u32,
+
+    #[arg(short = 't', long = "threads", default_value_t = 1)]
+    /// Number of threads to spawn for variant calling. Default is 1.
+    pub threads: u32,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -82,13 +89,37 @@ fn run(args: Cli) -> Result<(), Box<dyn Error>> {
 
 
     // Call variants
-    let pb = indicatif::ProgressBar::new(read_pairs.len() as u64);
-    pb.set_message("Calling variants");
+    let pb = Arc::new(indicatif::ProgressBar::new(read_pairs.len() as u64));
+    let mut handles = vec![];
+    let read_pairs = Arc::new(Mutex::new(read_pairs));
+    let reference = Arc::new(reference);
+    let annotation = Arc::new(annotation);
+    let coverage_map = Arc::new(coverage_map);
+    for _ in 0..args.threads {
+        let read_pairs = Arc::clone(&read_pairs);
+        let reference = Arc::clone(&reference);
+        let annotation = Arc::clone(&annotation);
+        let coverage_map = Arc::clone(&coverage_map);
+        let pb = Arc::clone(&pb);
+
+        let handle = thread::spawn(move || {
+            let mut local_clusters = Vec::<Cluster>::new();
+            while let Some(pair) = read_pairs.lock().unwrap().pop() {
+                
+                let variants = call_variants(pair, &reference, &annotation, &coverage_map);
+                local_clusters.push(variants);
+                pb.inc(1);
+            }
+            local_clusters
+        });
+        handles.push(handle);
+    }
+
+    // Collect results from threads
     let mut clusters = Vec::<Cluster>::new();
-    for pair in read_pairs {
-        let variants = call_variants(pair, &reference, &annotation, &coverage_map);
-        clusters.push(variants);
-        pb.inc(1);
+    for handle in handles {
+        let mut local_clusters = handle.join().unwrap();
+        clusters.append(&mut local_clusters);
     }
     pb.finish_and_clear();
 
