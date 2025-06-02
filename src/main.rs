@@ -3,22 +3,21 @@ mod gene;
 mod mutation;
 mod utils;
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::{thread, vec};
 use std::{error::Error, fs::File};
 use clap::Parser;
-use indicatif::ProgressBar;
 use crossbeam::channel;
-use rust_htslib::bam;
 use polars::prelude::*;
+use rust_htslib::bam;
 
-use cluster::{Cluster, call_variants};
+use cluster::call_variants;
 use utils::{read_reference, read_annotation, read_pair_generator, get_coverage_map};
 
 #[derive(Parser, Debug)]
 #[command(name = "coVar", version, about)]
 struct Cli {
-    #[arg(short = 'i', long = "input")] // Add stdin support
+    #[arg(short = 'i', long = "input")] // TODO: Add stdin support
     /// Input BAM file (must be primer trimmed, sorted and indexed).
     pub input_bam: std::path::PathBuf,
 

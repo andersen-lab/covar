@@ -222,27 +222,13 @@ pub fn call_variants(
 }
 
 fn get_max_count(mut_range: (u32, u32), coverages: &[(u32, u32)]) -> u32 {
-    // coverages is sorted by start
+    // TODO: speed up this function
+
     let (mut_start, mut_end) = mut_range;
+    
     let mut max_count = 0;
-
-    // Use binary search to find the first coverage whose end >= start_range
-    let start_idx = match coverages.binary_search_by(|&(_, end)| {
-        if end < mut_start {
-            std::cmp::Ordering::Less
-        } else {
-            std::cmp::Ordering::Greater
-        }
-    }) {
-        Ok(idx) | Err(idx) => idx,
-    };
-
-    // Iterate from start_idx, stop when start > end_range
-    for &(start, end) in &coverages[start_idx..] {
-        if start > mut_end {
-            break;
-        }
-        if start <= mut_start && end >= mut_end {
+    for &(cov_start, cov_end) in coverages {
+        if cov_start <= mut_start && cov_end >= mut_end {
             max_count += 1;
         }
     }
