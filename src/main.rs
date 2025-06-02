@@ -8,6 +8,7 @@ use std::{thread, vec};
 use std::{error::Error, fs::File};
 use clap::Parser;
 use indicatif::ProgressBar;
+use crossbeam::channel;
 use rust_htslib::bam;
 use polars::prelude::*;
 
@@ -84,29 +85,32 @@ fn run(args: Cli) -> Result<(), Box<dyn Error>> {
         args.start_site,
         args.end_site.unwrap() // Whole genome
     );
-        
     let coverage_map = get_coverage_map(&read_pairs);
-
 
     // Call variants
     let pb = Arc::new(indicatif::ProgressBar::new(read_pairs.len() as u64));
+    let (sender, receiver) = channel::unbounded();
+    for pair in read_pairs {
+        sender.send(pair).unwrap();
+    }
+    drop(sender); // Close the channel
+
     let mut handles = vec![];
-    let read_pairs = Arc::new(Mutex::new(read_pairs));
     let reference = Arc::new(reference);
     let annotation = Arc::new(annotation);
     let coverage_map = Arc::new(coverage_map);
+
     for _ in 0..args.threads {
-        let read_pairs = Arc::clone(&read_pairs);
+        let receiver = receiver.clone();
         let reference = Arc::clone(&reference);
         let annotation = Arc::clone(&annotation);
         let coverage_map = Arc::clone(&coverage_map);
         let pb = Arc::clone(&pb);
 
         let handle = thread::spawn(move || {
-            let mut local_clusters = Vec::<Cluster>::new();
-            while let Some(pair) = read_pairs.lock().unwrap().pop() {
-                
-                let variants = call_variants(pair, &reference, &annotation, &coverage_map);
+            let mut local_clusters = Vec::new();
+            while let Ok(pair) = receiver.recv() {
+                let variants = call_variants(&pair, &reference, &annotation, &coverage_map);
                 local_clusters.push(variants);
                 pb.inc(1);
             }
@@ -116,7 +120,7 @@ fn run(args: Cli) -> Result<(), Box<dyn Error>> {
     }
 
     // Collect results from threads
-    let mut clusters = Vec::<Cluster>::new();
+    let mut clusters = Vec::new();
     for handle in handles {
         let mut local_clusters = handle.join().unwrap();
         clusters.append(&mut local_clusters);

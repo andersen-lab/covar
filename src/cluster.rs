@@ -48,7 +48,7 @@ impl fmt::Display for Cluster {
 }
 
 pub fn call_variants(
-    read_pair: (Option<Record>, Option<Record>),
+    read_pair: &(Option<Record>, Option<Record>),
     reference: &fasta::Record,
     annotation: &HashMap<(u32, u32), String>,
     coverage_map: &[(u32, u32)],
