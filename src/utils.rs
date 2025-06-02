@@ -114,8 +114,7 @@ pub fn get_coverage_map(read_pairs: &[(Option<Record>, Option<Record>)]) -> Vec<
         };
         coverage_map.push(coverage_range);
     }
-    // Sort the coverage map by start position
-    coverage_map.sort_by_key(|&(start, _)| start);
-
+    // Sort the coverage map by start position, then end position
+    coverage_map.sort_by_key(|&(start, end)| (start, end));
     coverage_map
 }
