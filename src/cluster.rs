@@ -222,17 +222,15 @@ pub fn call_variants(
 }
 
 fn get_max_count(mut_range: (u32, u32), coverages: &[(u32, u32)]) -> u32 {
-    // TODO: speed up this function
-
     let (mut_start, mut_end) = mut_range;
-    
-    let mut max_count = 0;
-    for &(cov_start, cov_end) in coverages {
-        if cov_start <= mut_start && cov_end >= mut_end {
-            max_count += 1;
-        }
-    }
-    max_count
+
+    // Binary search for the first coverage where cov_start > mut_start
+    let left = coverages.partition_point(|&(cov_start, _)| cov_start <= mut_start);
+
+    coverages[..left]
+        .iter()
+        .filter(|&&(_, cov_end)| cov_end >= mut_end)
+        .count() as u32
 }
 
 macro_rules! struct_to_dataframe {
