@@ -39,7 +39,6 @@ impl Insertion {
             if self.get_position() >= start && self.get_position() <= end {
                 return Some(Gene {
                     start,
-                    end,
                     name: gene_name.clone(),
                 });
             }
