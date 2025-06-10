@@ -130,7 +130,7 @@ pub fn call_variants(
 
     // Process read1 if present
     if let Some(r1) = read1 {
-        let r1_variants = process_read(&r1);
+        let r1_variants = process_read(r1);
         variants.extend(r1_variants);
 
         let start_pos = r1.pos() as u32;
@@ -150,7 +150,7 @@ pub fn call_variants(
     
     // Process read2 if present
     if let Some(r2) = read2 {
-        let r2_variants = process_read(&r2);
+        let r2_variants = process_read(r2);
         variants.extend(r2_variants);
         let start_pos = r2.pos() as u32;
         let end_pos = r2.cigar().end_pos() as u32;
@@ -252,7 +252,33 @@ macro_rules! struct_to_dataframe {
 }
 
 pub fn merge_clusters(clusters: &[Cluster], args: &Cli) -> Result<DataFrame, Box<dyn Error>> {
-    let df = match struct_to_dataframe!(clusters,
+
+    // Fill in "Unknown" for missing amino acid mutations wherever possible
+    let mut nt_to_aa: HashMap<String, String> = HashMap::new();
+    for cluster in clusters {
+        if nt_to_aa.contains_key(&cluster.nt_mutations) {
+            if nt_to_aa[&cluster.nt_mutations].contains("Unknown") {
+                // If the amino acid mutation is "Unknown", we can replace it with the current one
+                nt_to_aa.insert(cluster.nt_mutations.clone(), cluster.aa_mutations.clone());
+            }
+            continue; // Skip if already exists and not "Unknown"
+        } else {
+            // Insert the nt_mutations and aa_mutations into the map
+            nt_to_aa.insert(cluster.nt_mutations.clone(), cluster.aa_mutations.clone());
+        }
+    }
+    let mut mut_clusters = clusters.to_vec();
+    for cluster in mut_clusters.iter_mut() {
+        // Replace the aa_mutations with the one from the map
+        if let Some(aa_mut) = nt_to_aa.get(&cluster.nt_mutations) {
+            cluster.aa_mutations = aa_mut.clone();
+        } else {
+            // If not found, set to "Unknown"
+            cluster.aa_mutations = "Unknown".to_string();
+        }
+    }
+
+    let df = match struct_to_dataframe!(mut_clusters,
             [nt_mutations, aa_mutations, count, max_count, coverage_start, coverage_end, mutations_start, mutations_end]) {
             Ok(df) => df.lazy(),
             Err(e) => panic!("Error creating DataFrame: {}", e),
