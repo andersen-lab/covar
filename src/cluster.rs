@@ -52,6 +52,7 @@ pub fn call_variants(
     reference: &fasta::Record,
     annotation: &HashMap<(u32, u32), String>,
     coverage_map: &[(u32, u32)],
+    min_quality: u8
 ) -> Cluster { 
     let (read1, read2) = read_pair;
 
@@ -62,6 +63,7 @@ pub fn call_variants(
         let ref_seq = reference.seq();
 
         let read_seq = String::from_utf8(read.seq().as_bytes().to_vec()).expect("Invalid UTF-8 in read sequence"); // panics
+        let read_qual = read.qual();
         let cigar = read.cigar();
 
         let start_pos: u32 = read.pos() as u32;
@@ -77,6 +79,9 @@ pub fn call_variants(
                         let read_base = read_seq.chars().nth((read_pos + match_idx) as usize).unwrap();
                         
                         if ref_base != read_base && read_base != 'N' {
+                            if read_qual[(read_pos + match_idx) as usize] < min_quality {
+                                continue; // Skip low quality bases
+                            }
                             let snp = SNP::new(ref_pos + match_idx, ref_base, read_base);
                             if let Some(gene) = snp.get_gene(annotation) {
                                 let aa_mutation = snp.translate(&read_seq, read_pos + match_idx, reference, &gene)
@@ -89,6 +94,9 @@ pub fn call_variants(
                     ref_pos += len;
                 },
                 Cigar::Ins(len) => { // Call insertions
+                    if read_qual[(read_pos) as usize] < min_quality {
+                        continue; // Skip low quality bases
+                    }
                     let ref_base = ref_seq[(ref_pos - 1) as usize] as char;
                     let ins_seq = read_seq[(read_pos as usize)..(read_pos as usize + *len as usize)].to_string();
                     let insertion = Insertion::new(ref_pos - 1, ref_base, ins_seq);
@@ -101,6 +109,9 @@ pub fn call_variants(
                     read_pos += len;
                 },
                 Cigar::Del(len) => { // Call deletions
+                    if read_qual[(read_pos) as usize] < min_quality {
+                        continue; // Skip low quality bases
+                    }
                     let deletion_site = ref_pos - 1;
 
                     let ref_base = ref_seq[deletion_site as usize] as char;

@@ -45,6 +45,10 @@ struct Cli {
     /// Minimum occurrences to include a cluster in output. Default is 1.
     pub min_count: u32,
 
+    #[arg(short = 'q', long = "min_quality", default_value_t = 20)]
+    /// Minimum base quality for variant calling. Default is 20.
+    pub min_quality: u8,
+
     #[arg(short = 't', long = "threads", default_value_t = 1)]
     /// Number of threads to spawn for variant calling. Default is 1.
     pub threads: u32,
@@ -109,7 +113,7 @@ fn run(args: Cli) -> Result<(), Box<dyn Error>> {
         let handle = thread::spawn(move || {
             let mut local_clusters = Vec::new();
             while let Ok(pair) = receiver.recv() {
-                let variants = call_variants(&pair, &reference, &annotation, &coverage_map);
+                let variants = call_variants(&pair, &reference, &annotation, &coverage_map, args.min_quality);
                 local_clusters.push(variants);
                 pb.inc(1);
             }
