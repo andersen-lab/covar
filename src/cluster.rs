@@ -80,8 +80,6 @@ pub fn call_variants(
                         
                         if ref_base != read_base && read_base != 'N' {
                             if read_qual[(read_pos + match_idx) as usize] < min_quality {
-                                // read_pos += len;
-                                // ref_pos += len;
                                 continue; // Skip low quality bases
                             }
                             let snp = SNP::new(ref_pos + match_idx, ref_base, read_base);
