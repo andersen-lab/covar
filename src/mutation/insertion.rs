@@ -51,7 +51,7 @@ impl Insertion {
         let insertion_seq = self.alt_sequence.as_bytes();
         if insertion_seq.len() % 3 != 0 { return None }
         
-        let codon_pos = (self.pos + insertion_seq.len() as u32 - gene.get_start()) / 3;
+        let codon_pos = ((self.pos + 1 - gene.get_start()) / 3) + 2;
 
         let alt_codon: Seq<Dna> = match insertion_seq.try_into() {
             Ok(codon) => codon,

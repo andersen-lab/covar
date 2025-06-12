@@ -50,7 +50,7 @@ impl Deletion {
         if deletion_seq.len() % 3 != 0 { return None } // not in frame
         let deletion_aa_len = (deletion_seq.len() / 3) as u32;
 
-        let codon_pos = (self.pos + deletion_seq.len() as u32 - gene.get_start()) / 3;
+        let codon_pos = ((self.pos + 1 - gene.get_start()) / 3) + 2;
 
         let translated = if deletion_aa_len > 1 {
             format!("{}:DEL{}/{}", gene.get_name(), codon_pos, codon_pos + deletion_aa_len - 1)
