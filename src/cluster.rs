@@ -80,6 +80,8 @@ pub fn call_variants(
                         
                         if ref_base != read_base && read_base != 'N' {
                             if read_qual[(read_pos + match_idx) as usize] < min_quality {
+                                // read_pos += len;
+                                // ref_pos += len;
                                 continue; // Skip low quality bases
                             }
                             let snp = SNP::new(ref_pos + match_idx, ref_base, read_base);
@@ -95,6 +97,7 @@ pub fn call_variants(
                 },
                 Cigar::Ins(len) => { // Call insertions
                     if read_qual[(read_pos) as usize] < min_quality {
+                        read_pos += len;
                         continue; // Skip low quality bases
                     }
                     let ref_base = ref_seq[(ref_pos - 1) as usize] as char;
@@ -110,6 +113,7 @@ pub fn call_variants(
                 },
                 Cigar::Del(len) => { // Call deletions
                     if read_qual[(read_pos) as usize] < min_quality {
+                        ref_pos += len;
                         continue; // Skip low quality bases
                     }
                     let deletion_site = ref_pos - 1;
