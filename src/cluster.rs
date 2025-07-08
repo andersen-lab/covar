@@ -12,8 +12,8 @@ use crate::{mutation::{deletion::Deletion, insertion::Insertion, snp::SNP, Mutat
 pub struct Cluster {
     nt_mutations: String,
     aa_mutations: String,
-    count: u32,
-    max_count: u32,
+    cluster_depth: u32,
+    total_depth: u32,
     coverage_start: u32,
     coverage_end: u32,
     mutations_start: u32,
@@ -25,8 +25,8 @@ impl Cluster {
         Self {
             nt_mutations,
             aa_mutations,
-            count: 1,
-            max_count,
+            cluster_depth: 1,
+            total_depth: max_count,
             coverage_start,
             coverage_end,
             mutations_start,
@@ -41,7 +41,7 @@ impl fmt::Display for Cluster {
         "{}\t{}\t{}\t{}\t{}",
         self.nt_mutations,
         self.aa_mutations,
-        self.count,
+        self.cluster_depth,
         self.coverage_start,
         self.coverage_end)
     }
@@ -292,7 +292,7 @@ pub fn merge_clusters(clusters: &[Cluster], args: &Cli) -> Result<DataFrame, Box
     }
 
     let df = match struct_to_dataframe!(mut_clusters,
-            [nt_mutations, aa_mutations, count, max_count, coverage_start, coverage_end, mutations_start, mutations_end]) {
+            [nt_mutations, aa_mutations, cluster_depth, total_depth, coverage_start, coverage_end, mutations_start, mutations_end]) {
             Ok(df) => df.lazy(),
             Err(e) => panic!("Error creating DataFrame: {}", e),
         };
@@ -301,21 +301,23 @@ pub fn merge_clusters(clusters: &[Cluster], args: &Cli) -> Result<DataFrame, Box
         .group_by_stable([col("nt_mutations")])
         .agg([
             col("aa_mutations").first().alias("aa_mutations"),
-            col("count").sum().alias("count"),
-            col("max_count").max().alias("max_count"),
+            col("cluster_depth").sum().alias("cluster_depth"),
+            col("total_depth").max().alias("total_depth"),
             col("coverage_start").max().alias("coverage_start"),
             col("coverage_end").min().alias("coverage_end"),
-        ])
-        // Filter by CLI parameters
-        .filter(col("count").gt(lit(args.min_count))) 
-        .filter(col("max_count").gt(lit(0)))
+            ])
         // Calculate frequency column
-        .with_column((col("count").cast(DataType::Float64) / col("max_count").cast(DataType::Float64)).alias("frequency"))
+        .with_column((col("cluster_depth").cast(DataType::Float64) / col("total_depth").cast(DataType::Float64)).alias("frequency"))
+
+        // Filter by CLI parameters
+        .filter(col("total_depth").gt(lit(0)))
+        .filter(col("cluster_depth").gt_eq(lit(args.min_count))) 
+        .filter(col("frequency").gt_eq(lit(args.min_frequency)))
         .collect()?;
 
     // Reorder columms
-    let df = df.select(["nt_mutations", "aa_mutations", "count", "max_count", "frequency", "coverage_start", "coverage_end"])?
-        .sort(["count"], SortMultipleOptions::default().with_order_descending(true))?;
+    let df = df.select(["nt_mutations", "aa_mutations", "cluster_depth", "total_depth", "frequency", "coverage_start", "coverage_end"])?
+        .sort(["cluster_depth"], SortMultipleOptions::default().with_order_descending(true))?;
     
     Ok(df)
-    }
+}

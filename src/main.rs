@@ -34,23 +34,27 @@ struct Cli {
     pub output: Option<std::path::PathBuf>,
 
     #[arg(short = 's', long = "start_site", default_value_t = 0)]
-    /// Genomic start site for variant calling. Default is 0.
+    /// Genomic start site for variant calling. [0].
     pub start_site: u32,
 
     #[arg(short = 'e', long = "end_site")]
-    /// Genomic end site for variant calling. Default is the length of the reference genome.
+    /// Genomic end site for variant calling. Defaults to the length of the reference genome.
     pub end_site: Option<u32>,
 
-    #[arg(short = 'c', long = "min_count", default_value_t = 1)]
-    /// Minimum occurrences to include a cluster in output. Default is 1.
+    #[arg(short = 'd', long = "min_depth", default_value_t = 1)]
+    /// Minimum coverage depth to include a mutation cluster in output. [1]
     pub min_count: u32,
 
+    #[arg(short = 'f', long = "min_frequency", default_value_t = 0.01)]
+    /// Minimum frequency (cluster depth / total depth) to include a cluster in output. [0.01]
+    pub min_frequency: f64,
+
     #[arg(short = 'q', long = "min_quality", default_value_t = 20)]
-    /// Minimum base quality for variant calling. Default is 20.
+    /// Minimum base quality for variant calling. [20]
     pub min_quality: u8,
 
     #[arg(short = 't', long = "threads", default_value_t = 1)]
-    /// Number of threads to spawn for variant calling. Default is 1.
+    /// Number of threads to spawn for variant calling. [1]
     pub threads: u32,
 }
 
