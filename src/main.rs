@@ -42,8 +42,8 @@ struct Cli {
     pub end_site: Option<u32>,
 
     #[arg(short = 'd', long = "min_depth", default_value_t = 1)]
-    /// Minimum coverage depth to include a mutation cluster in output. [1]
-    pub min_count: u32,
+    /// Minimum coverage depth for a mutation cluster to be considered. [1]
+    pub min_depth: u32,
 
     #[arg(short = 'f', long = "min_frequency", default_value_t = 0.01)]
     /// Minimum frequency (cluster depth / total depth) to include a cluster in output. [0.01]

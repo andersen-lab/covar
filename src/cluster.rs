@@ -311,7 +311,7 @@ pub fn merge_clusters(clusters: &[Cluster], args: &Cli) -> Result<DataFrame, Box
 
         // Filter by CLI parameters
         .filter(col("total_depth").gt(lit(0)))
-        .filter(col("cluster_depth").gt_eq(lit(args.min_count))) 
+        .filter(col("cluster_depth").gt_eq(lit(args.min_depth))) 
         .filter(col("frequency").gt_eq(lit(args.min_frequency)))
         .collect()?;
 
