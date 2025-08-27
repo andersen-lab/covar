@@ -317,6 +317,7 @@ pub fn merge_clusters(clusters: &[Cluster], config: &Config) -> Result<DataFrame
 
     // Reorder columms
     let df = df.select(["nt_mutations", "aa_mutations", "cluster_depth", "total_depth", "frequency", "coverage_start", "coverage_end"])?
+        .sort(["frequency"], SortMultipleOptions::default().with_order_descending(true))?
         .sort(["cluster_depth"], SortMultipleOptions::default().with_order_descending(true))?;
     
     Ok(df)
