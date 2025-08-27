@@ -6,7 +6,7 @@ use polars::prelude::*;
 use rust_htslib::bam::record::Cigar;
 use rust_htslib::bam::Record;
 
-use crate::{mutation::{deletion::Deletion, insertion::Insertion, snp::SNP, Mutation}, Cli};
+use crate::{mutation::{deletion::Deletion, insertion::Insertion, snp::SNP, Mutation}, Config};
 
 #[derive(Clone)]
 pub struct Cluster {
@@ -264,7 +264,7 @@ macro_rules! struct_to_dataframe {
     };
 }
 
-pub fn merge_clusters(clusters: &[Cluster], args: &Cli) -> Result<DataFrame, Box<dyn Error>> {
+pub fn merge_clusters(clusters: &[Cluster], config: &Config) -> Result<DataFrame, Box<dyn Error>> {
 
     // Fill in "Unknown" for missing amino acid mutations wherever possible
     let mut nt_to_aa: HashMap<String, String> = HashMap::new();
@@ -311,8 +311,8 @@ pub fn merge_clusters(clusters: &[Cluster], args: &Cli) -> Result<DataFrame, Box
 
         // Filter by CLI parameters
         .filter(col("total_depth").gt(lit(0)))
-        .filter(col("cluster_depth").gt_eq(lit(args.min_depth))) 
-        .filter(col("frequency").gt_eq(lit(args.min_frequency)))
+        .filter(col("cluster_depth").gt_eq(lit(config.min_depth))) 
+        .filter(col("frequency").gt_eq(lit(config.min_frequency)))
         .collect()?;
 
     // Reorder columms

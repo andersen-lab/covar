@@ -1,96 +1,45 @@
+mod cli;
 mod cluster;
 mod gene;
 mod mutation;
 mod utils;
 
 use std::sync::Arc;
-use std::{thread, vec};
-use std::{error::Error, fs::File};
+use std::{thread, vec, error::Error, fs::File};
 use clap::Parser;
 use crossbeam::channel;
 use polars::prelude::*;
 use rust_htslib::bam;
 
+use cli::{Cli, Config};
 use cluster::call_variants;
 use utils::{read_reference, read_annotation, read_pair_generator, get_coverage_map};
 
-#[derive(Parser, Debug)]
-#[command(name = "coVar", version, about)]
-struct Cli {
-    #[arg(short = 'i', long = "input")] // TODO: Add stdin support
-    /// Input BAM file (must be primer trimmed, sorted and indexed).
-    pub input_bam: std::path::PathBuf,
-
-    #[arg(short = 'r', long = "reference")]
-    /// Reference genome FASTA file.
-    pub reference_fasta: std::path::PathBuf,
-
-    #[arg(short = 'a', long = "annotation")]
-    /// Annotation GFF3 file. Used for translating mutations to respective amino acid mutation.
-    pub annotation_gff: std::path::PathBuf,
-
-    #[arg(short = 'o', long = "output")]
-    /// Optional output file path. If not provided, output will be printed to stdout.
-    pub output: Option<std::path::PathBuf>,
-
-    #[arg(short = 's', long = "start_site", default_value_t = 0)]
-    /// Genomic start site for variant calling. [0].
-    pub start_site: u32,
-
-    #[arg(short = 'e', long = "end_site")]
-    /// Genomic end site for variant calling. Defaults to the length of the reference genome.
-    pub end_site: Option<u32>,
-
-    #[arg(short = 'd', long = "min_depth", default_value_t = 1)]
-    /// Minimum coverage depth for a mutation cluster to be considered. [1]
-    pub min_depth: u32,
-
-    #[arg(short = 'f', long = "min_frequency", default_value_t = 0.01)]
-    /// Minimum frequency (cluster depth / total depth) to include a cluster in output. [0.01]
-    pub min_frequency: f64,
-
-    #[arg(short = 'q', long = "min_quality", default_value_t = 20)]
-    /// Minimum base quality for variant calling. [20]
-    pub min_quality: u8,
-
-    #[arg(short = 't', long = "threads", default_value_t = 1)]
-    /// Number of threads to spawn for variant calling. [1]
-    pub threads: u32,
-}
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let mut args = Cli::parse();
-
-    if args.end_site.is_none() {
-        // Set end site to the length of the reference genome if not provided
-        let reference = read_reference(&args.reference_fasta)?;
-        args.end_site = Some(reference.seq().len() as u32);
-    } else if let Some(end_site) = args.end_site {
-        if end_site < args.start_site {
-            return Err("End site must be greater than or equal to start site.".into());
-        }
-    }
+    let args = Cli::parse();
+    let config = Config::from_cli(args)?;
 
     eprintln!("input: {:?}\nreference: {:?}\nannotation: {:?}",
-    args.input_bam, args.reference_fasta, args.annotation_gff);
+        config.input_bam, config.reference_fasta, config.annotation_gff);
 
-    run(args)?;
+    run(config)?;
 
     Ok(())
 }
 
-
-fn run(args: Cli) -> Result<(), Box<dyn Error>> {
-    let mut bam = bam::IndexedReader::from_path(&args.input_bam)?;
-    let reference = read_reference(&args.reference_fasta)?;
-    let annotation = read_annotation(&args.annotation_gff)?;
+fn run(config: Config) -> Result<(), Box<dyn Error>> {
+    let mut bam = bam::IndexedReader::from_path(&config.input_bam)?;
+    let reference = read_reference(&config.reference_fasta)?;
+    let annotation = read_annotation(&config.annotation_gff)?;
 
     // Get read pairs
+    // TODO: stream read pairs instead of loading all into memory 
     let read_pairs = read_pair_generator(
         &mut bam,
         reference.id(),
-        args.start_site,
-        args.end_site.unwrap() // Whole genome
+        config.start_site,
+        config.end_site // Whole genome
     );
     let coverage_map = get_coverage_map(&read_pairs);
 
@@ -107,7 +56,7 @@ fn run(args: Cli) -> Result<(), Box<dyn Error>> {
     let annotation = Arc::new(annotation);
     let coverage_map = Arc::new(coverage_map);
 
-    for _ in 0..args.threads {
+    for _ in 0..config.threads {
         let receiver = receiver.clone();
         let reference = Arc::clone(&reference);
         let annotation = Arc::clone(&annotation);
@@ -117,7 +66,7 @@ fn run(args: Cli) -> Result<(), Box<dyn Error>> {
         let handle = thread::spawn(move || {
             let mut local_clusters = Vec::new();
             while let Ok(pair) = receiver.recv() {
-                let variants = call_variants(&pair, &reference, &annotation, &coverage_map, args.min_quality);
+                let variants = call_variants(&pair, &reference, &annotation, &coverage_map, config.min_quality);
                 local_clusters.push(variants);
                 pb.inc(1);
             }
@@ -135,9 +84,9 @@ fn run(args: Cli) -> Result<(), Box<dyn Error>> {
     pb.finish_and_clear();
 
     // Aggregate unique clusters
-    let mut clusters_merged = cluster::merge_clusters(&clusters, &args)?;
+    let mut clusters_merged = cluster::merge_clusters(&clusters, &config)?;
 
-    if let Some(output_path) = args.output { // Write to file if provided
+    if let Some(output_path) = config.output { // Write to file if provided
         let file = File::create(output_path)?;
         let mut writer = CsvWriter::new(file)
             .with_separator(b'\t');
