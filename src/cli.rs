@@ -43,7 +43,7 @@ pub struct Cli {
 
     #[arg(short = 't', long = "threads", default_value_t = 1)]
     /// Number of threads to spawn for variant calling. [1]
-    pub threads: u32,
+    pub threads: usize,
 }
 
 pub struct Config {
@@ -56,7 +56,7 @@ pub struct Config {
     pub min_depth: u32,
     pub min_frequency: f64,
     pub min_quality: u8,
-    pub threads: u32,
+    pub threads: usize,
 }
 
 impl Config {

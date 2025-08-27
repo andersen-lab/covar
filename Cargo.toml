@@ -13,4 +13,5 @@ rust-htslib = "0.49.0"
 bio-seq = { version="0.14", features=["translation"] }
 polars = { version = "0.46.0", features = ["lazy"] }
 crossbeam = "0.8.4"
+rayon = "1.11.0"
 
