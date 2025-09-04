@@ -103,7 +103,7 @@ pub fn call_variants(
                     let insertion = Insertion::new(ref_pos - 1, ref_base, ins_seq);
                     if let Some(gene) = insertion.get_gene(annotation) {
                         let aa_mutation = insertion.translate(&gene)
-                            .unwrap_or_else(|| "Unknown".to_string());
+                            .unwrap_or_else(|| "NA".to_string());
                         local_variants.push((Mutation::Insertion(insertion), aa_mutation));                                    
                     }
                     
@@ -123,7 +123,7 @@ pub fn call_variants(
                     let deletion = Deletion::new(deletion_site, ref_base, del_seq);
                     if let Some(gene) = deletion.get_gene(annotation) {
                         let aa_mutation = deletion.translate(&gene)
-                            .unwrap_or_else(|| "Unknown".to_string());
+                            .unwrap_or_else(|| "NA".to_string());
                         local_variants.push((Mutation::Deletion(deletion), aa_mutation));                                    
                     }
                     
@@ -271,8 +271,12 @@ pub fn merge_clusters(clusters: &[Cluster], config: &Config) -> Result<DataFrame
     for cluster in clusters {
         if nt_to_aa.contains_key(&cluster.nt_mutations) {
             if nt_to_aa[&cluster.nt_mutations].contains("Unknown") {
-                // If the amino acid mutation is "Unknown", we can replace it with the current one
-                nt_to_aa.insert(cluster.nt_mutations.clone(), cluster.aa_mutations.clone());
+                let curr_unknown_count = nt_to_aa[&cluster.nt_mutations].matches("Unknown").count();
+                let new_unknown_count = cluster.aa_mutations.matches("Unknown").count();
+                // If the current one has fewer "Unknown", we can replace it
+                if new_unknown_count < curr_unknown_count {
+                    nt_to_aa.insert(cluster.nt_mutations.clone(), cluster.aa_mutations.clone());
+                }
             }
             continue; // Skip if already exists and not "Unknown"
         } else {
@@ -285,9 +289,6 @@ pub fn merge_clusters(clusters: &[Cluster], config: &Config) -> Result<DataFrame
         // Replace the aa_mutations with the one from the map
         if let Some(aa_mut) = nt_to_aa.get(&cluster.nt_mutations) {
             cluster.aa_mutations = aa_mut.clone();
-        } else {
-            // If not found, set to "Unknown"
-            cluster.aa_mutations = "Unknown".to_string();
         }
     }
 
@@ -315,10 +316,8 @@ pub fn merge_clusters(clusters: &[Cluster], config: &Config) -> Result<DataFrame
         .filter(col("frequency").gt_eq(lit(config.min_frequency)))
         .collect()?;
 
-    // Reorder columms
+    // Reorder columns and sort
     let df = df.select(["nt_mutations", "aa_mutations", "cluster_depth", "total_depth", "frequency", "coverage_start", "coverage_end"])?
-        .sort(["frequency"], SortMultipleOptions::default().with_order_descending(true))?
-        .sort(["cluster_depth"], SortMultipleOptions::default().with_order_descending(true))?;
-    
+        .sort(["cluster_depth", "nt_mutations"], SortMultipleOptions::default().with_order_descending(true))?;
     Ok(df)
 }

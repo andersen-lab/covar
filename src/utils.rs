@@ -24,6 +24,11 @@ pub fn read_annotation(path: &PathBuf) -> Result<HashMap<(u32, u32), String>, Bo
         let rec = record?;
         if rec.feature_type() == "CDS" {
             if let Some(gene) = rec.attributes().get("gene") {
+                if gene == "ORF1ab" { // SARS-CoV-2 specific
+                    gene_regions.insert((266, 13468), "ORF1a".to_string());
+                    gene_regions.insert((13468, 21555), "ORF1b".to_string());
+                    continue;
+                }
                 gene_regions.insert((*rec.start() as u32, *rec.end() as u32), gene.to_string());
             }
         }
