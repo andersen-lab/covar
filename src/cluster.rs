@@ -5,6 +5,7 @@ use bio::io::fasta;
 use polars::prelude::*;
 use rust_htslib::bam::record::Cigar;
 use rust_htslib::bam::Record;
+use rust_htslib::htslib::printf;
 
 use crate::{mutation::{deletion::Deletion, insertion::Insertion, snp::SNP, Mutation}, Config};
 
@@ -78,15 +79,13 @@ pub fn call_variants(
                         let ref_base = ref_seq[(ref_pos + match_idx) as usize] as char;
                         let read_base = read_seq.chars().nth((read_pos + match_idx) as usize).unwrap();
                         
-                        if ref_base != read_base && read_base != 'N' {
-                            if read_qual[(read_pos + match_idx) as usize] < min_quality {
-                                continue; // Skip low quality bases
-                            }
+                        if ref_base != read_base && read_base != 'N' && read_qual[(read_pos + match_idx) as usize] >= min_quality {
+
                             let snp = SNP::new(ref_pos + match_idx, ref_base, read_base);
-                            if let Some(gene) = snp.get_gene(annotation) {
-                                let aa_mutation = snp.translate(&read_seq, read_pos + match_idx, reference, &gene)
+                            if let Some(gene) = snp.get_gene(annotation){
+                                let aa_mutation = snp.translate(&read_seq, read_pos + match_idx, read_qual, reference, &gene, min_quality)
                                     .unwrap_or_else(|| "Unknown".to_string());
-                                local_variants.push((Mutation::SNP(snp), aa_mutation));                                    
+                                local_variants.push((Mutation::SNP(snp), aa_mutation));        
                             }
                         }
                     }
@@ -94,10 +93,11 @@ pub fn call_variants(
                     ref_pos += len;
                 },
                 Cigar::Ins(len) => { // Call insertions
-                    if read_qual[(read_pos) as usize] < min_quality {
+                    if read_qual[read_pos as usize..read_pos as usize + (*len as usize)].iter().any(|&q| q < min_quality)  {
                         read_pos += len;
-                        continue; // Skip low quality bases
+                        continue;
                     }
+
                     let ref_base = ref_seq[(ref_pos - 1) as usize] as char;
                     let ins_seq = read_seq[(read_pos as usize)..(read_pos as usize + *len as usize)].to_string();
                     let insertion = Insertion::new(ref_pos - 1, ref_base, ins_seq);
@@ -110,10 +110,11 @@ pub fn call_variants(
                     read_pos += len;
                 },
                 Cigar::Del(len) => { // Call deletions
-                    if read_qual[(read_pos) as usize] < min_quality {
+                    if read_qual[read_pos as usize..read_pos as usize + (*len as usize)].iter().any(|&q| q < min_quality) {
                         ref_pos += len;
-                        continue; // Skip low quality bases
+                        continue;
                     }
+
                     let deletion_site = ref_pos - 1;
 
                     let ref_base = ref_seq[deletion_site as usize] as char;
@@ -269,20 +270,17 @@ pub fn merge_clusters(clusters: &[Cluster], config: &Config) -> Result<DataFrame
     // Fill in "Unknown" for missing amino acid mutations wherever possible
     let mut nt_to_aa: HashMap<String, String> = HashMap::new();
     for cluster in clusters {
-        if nt_to_aa.contains_key(&cluster.nt_mutations) {
-            if nt_to_aa[&cluster.nt_mutations].contains("Unknown") {
-                let curr_unknown_count = nt_to_aa[&cluster.nt_mutations].matches("Unknown").count();
-                let new_unknown_count = cluster.aa_mutations.matches("Unknown").count();
-                // If the current one has fewer "Unknown", we can replace it
-                if new_unknown_count < curr_unknown_count {
-                    nt_to_aa.insert(cluster.nt_mutations.clone(), cluster.aa_mutations.clone());
-                }
-            }
-            continue; // Skip if already exists and not "Unknown"
-        } else {
-            // Insert the nt_mutations and aa_mutations into the map
-            nt_to_aa.insert(cluster.nt_mutations.clone(), cluster.aa_mutations.clone());
-        }
+        nt_to_aa
+            .entry(cluster.nt_mutations.clone())
+            .and_modify(|existing_aa_mut| {
+                *existing_aa_mut = existing_aa_mut
+                    .split_whitespace()
+                    .zip(cluster.aa_mutations.split_whitespace())
+                    .map(|(existing, new)| if existing == "Unknown" { new } else { existing })
+                    .collect::<Vec<_>>()
+                    .join(" ");
+            })
+            .or_insert_with(|| cluster.aa_mutations.clone());
     }
     let mut mut_clusters = clusters.to_vec();
     for cluster in mut_clusters.iter_mut() {
@@ -291,7 +289,7 @@ pub fn merge_clusters(clusters: &[Cluster], config: &Config) -> Result<DataFrame
             cluster.aa_mutations = aa_mut.clone();
         }
     }
-
+    //let mut mut_clusters = clusters.to_vec();
     let df = match struct_to_dataframe!(mut_clusters,
             [nt_mutations, aa_mutations, cluster_depth, total_depth, coverage_start, coverage_end, mutations_start, mutations_end]) {
             Ok(df) => df.lazy(),
