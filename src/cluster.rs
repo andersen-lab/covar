@@ -5,7 +5,6 @@ use bio::io::fasta;
 use polars::prelude::*;
 use rust_htslib::bam::record::Cigar;
 use rust_htslib::bam::Record;
-use rust_htslib::htslib::printf;
 
 use crate::{mutation::{deletion::Deletion, insertion::Insertion, snp::SNP, Mutation}, Config};
 
@@ -74,6 +73,7 @@ pub fn call_variants(
         for c in cigar.iter() {
             match c {
                 Cigar::Match(len) => { // Call SNPs
+
                     for match_idx  in 0..*len {
 
                         let ref_base = ref_seq[(ref_pos + match_idx) as usize] as char;
@@ -93,8 +93,8 @@ pub fn call_variants(
                     ref_pos += len;
                 },
                 Cigar::Ins(len) => { // Call insertions
-                    if read_qual[read_pos as usize..read_pos as usize + (*len as usize)].iter().any(|&q| q < min_quality)  {
-                        read_pos += len;
+                    if (read_pos as usize + (*len as usize)) > read_qual.len() || read_qual[read_pos as usize..read_pos as usize + (*len as usize)].iter().any(|&q| q < min_quality) {
+                        ref_pos += len;
                         continue;
                     }
 
@@ -110,7 +110,7 @@ pub fn call_variants(
                     read_pos += len;
                 },
                 Cigar::Del(len) => { // Call deletions
-                    if read_qual[read_pos as usize..read_pos as usize + (*len as usize)].iter().any(|&q| q < min_quality) {
+                    if (read_pos as usize + (*len as usize)) > read_qual.len() || read_qual[read_pos as usize..read_pos as usize + (*len as usize)].iter().any(|&q| q < min_quality) {
                         ref_pos += len;
                         continue;
                     }
@@ -295,16 +295,16 @@ pub fn merge_clusters(clusters: &[Cluster], config: &Config) -> Result<DataFrame
             Ok(df) => df.lazy(),
             Err(e) => panic!("Error creating DataFrame: {}", e),
         };
-        
+
     let df = df
         .group_by_stable([col("nt_mutations")])
         .agg([
-            col("aa_mutations").first().alias("aa_mutations"),
+            col("aa_mutations").first().alias("aa_mutations"), //TODO calculate the mode here instead of first
             col("cluster_depth").sum().alias("cluster_depth"),
             col("total_depth").max().alias("total_depth"),
             col("coverage_start").max().alias("coverage_start"),
             col("coverage_end").min().alias("coverage_end"),
-            ])
+        ])
         // Calculate frequency column
         .with_column((col("cluster_depth").cast(DataType::Float64) / col("total_depth").cast(DataType::Float64)).alias("frequency"))
 
