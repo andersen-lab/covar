@@ -1,3 +1,5 @@
+mod aggregate;
+mod call_variants;
 mod cli;
 mod cluster;
 mod gene;
@@ -11,21 +13,15 @@ use polars::prelude::*;
 use rust_htslib::bam;
 use rayon::prelude::*;
 
+use aggregate::aggregate_clusters;
 use cli::{Cli, Config};
-use cluster::call_variants;
+use call_variants::call_variants;
 use utils::{read_reference, read_annotation, read_pair_generator, get_coverage_map};
 
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let args = Cli::parse();
+    let args: Cli = Cli::parse();
     let config = Config::from_cli(args)?;
-
-    eprintln!(
-        "input: {:?}\nreference: {:?}\nannotation: {:?}",
-        config.input_bam,
-        config.reference_fasta, 
-        config.annotation_gff
-    );
 
     run(config)?;
 
@@ -67,7 +63,7 @@ fn run(config: Config) -> Result<(), Box<dyn Error>> {
     pb.finish_and_clear();
 
     // Aggregate unique clusters
-    let mut clusters_merged = cluster::merge_clusters(&clusters, &config)?;
+    let mut clusters_merged = aggregate_clusters(&clusters, &config)?;
     
     // Write to file if provided, else to stdout
     if let Some(output_path) = config.output { 
