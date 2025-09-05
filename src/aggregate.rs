@@ -66,7 +66,11 @@ pub fn aggregate_clusters(clusters: &[Cluster], config: &Config) -> Result<DataF
             col("coverage_end").min().alias("coverage_end"),
         ])
         // Calculate frequency column
-        .with_column((col("cluster_depth").cast(DataType::Float64) / col("total_depth").cast(DataType::Float64)).alias("frequency"))
+        .with_column(
+            (col("cluster_depth").cast(DataType::Float64) / col("total_depth").cast(DataType::Float64))
+            .round(6)
+            .alias("frequency")
+        )
 
         // Filter by CLI parameters
         .filter(col("total_depth").gt(lit(0)))
