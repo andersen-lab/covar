@@ -2,8 +2,8 @@ use std::fmt;
 
 #[derive(Clone)]
 pub struct Cluster {
-    pub aa_mutations: String,
     pub nt_mutations: String,
+    pub aa_mutations: String,
     pub cluster_depth: u32,
     pub total_depth: u32,
     pub coverage_start: u32,

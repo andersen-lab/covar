@@ -42,15 +42,9 @@ pub fn aggregate_clusters(clusters: &[Cluster], config: &Config) -> Result<DataF
             })
             .or_insert_with(|| cluster.aa_mutations.clone());
     }
-    let mut mut_clusters = clusters.to_vec();
-    for cluster in mut_clusters.iter_mut() {
-        // Replace the aa_mutations with the one from the map
-        if let Some(aa_mut) = nt_to_aa.get(&cluster.nt_mutations) {
-            cluster.aa_mutations = aa_mut.clone();
-        }
-    }
-    //let mut mut_clusters = clusters.to_vec();
-    let df = match struct_to_dataframe!(mut_clusters,
+    let clusters = clusters.to_vec();
+
+    let df = match struct_to_dataframe!(clusters,
             [nt_mutations, aa_mutations, cluster_depth, total_depth, coverage_start, coverage_end, mutations_start, mutations_end]) {
             Ok(df) => df.lazy(),
             Err(e) => panic!("Error creating DataFrame: {}", e),
@@ -59,12 +53,13 @@ pub fn aggregate_clusters(clusters: &[Cluster], config: &Config) -> Result<DataF
     let df = df
         .group_by_stable([col("nt_mutations")])
         .agg([
-            col("aa_mutations").first().alias("aa_mutations"), //TODO calculate the mode here instead of first
+            // col("aa_mutations").mode().alias("aa_mutations"),
             col("cluster_depth").sum().alias("cluster_depth"),
             col("total_depth").max().alias("total_depth"),
             col("coverage_start").max().alias("coverage_start"),
             col("coverage_end").min().alias("coverage_end"),
         ])
+
         // Calculate frequency column
         .with_column(
             (col("cluster_depth").cast(DataType::Float64) / col("total_depth").cast(DataType::Float64))
@@ -76,7 +71,21 @@ pub fn aggregate_clusters(clusters: &[Cluster], config: &Config) -> Result<DataF
         .filter(col("total_depth").gt(lit(0)))
         .filter(col("cluster_depth").gt_eq(lit(config.min_depth))) 
         .filter(col("frequency").gt_eq(lit(config.min_frequency)))
+
         .collect()?;
+
+
+    let aa_mutations: Vec<String> = df
+        .column("nt_mutations")?
+        .str()?
+        .into_iter()
+        .filter_map(|nt_mut| nt_mut.and_then(|nt| nt_to_aa.get(nt).cloned()))
+        .collect(); // <-- Now Rust knows it's Vec<String>
+
+    let aa_mutations_series = Series::new(PlSmallStr::from("aa_mutations"), aa_mutations);
+    let mut df = df.clone();
+    df.with_column(aa_mutations_series)?;
+
 
     // Reorder columns and sort
     let df = df.select(["nt_mutations", "aa_mutations", "cluster_depth", "total_depth", "frequency", "coverage_start", "coverage_end"])?
