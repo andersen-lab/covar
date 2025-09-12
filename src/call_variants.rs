@@ -12,13 +12,13 @@ pub fn call_variants(
     reference: &fasta::Record,
     annotation: &HashMap<(u32, u32), String>,
     coverage_map: &[(u32, u32)],
-    min_quality: u8
+    min_quality: u8,
 ) -> Cluster { 
     let (read1, read2) = read_pair;
 
     // Function to process a single read in the pair
-    let process_read = |read: &Record| -> Vec<(Mutation, String)> {
-        let mut local_variants: Vec<(Mutation, String)> = Vec::new();
+    let process_read = |read: &Record| -> Vec<Mutation> {
+        let mut local_variants: Vec<Mutation> = Vec::new();
 
         let ref_seq = reference.seq();
 
@@ -39,13 +39,16 @@ pub fn call_variants(
                         let ref_base = ref_seq[(ref_pos + match_idx) as usize] as char;
                         let read_base = read_seq.chars().nth((read_pos + match_idx) as usize).unwrap();
                         
-                        if ref_base != read_base && read_base != 'N' && read_qual[(read_pos + match_idx) as usize] >= min_quality {
-
-                            let snp = SNP::new(ref_pos + match_idx, ref_base, read_base);
-                            if let Some(gene) = snp.get_gene(annotation){
-                                let aa_mutation = snp.translate(&read_seq, read_pos + match_idx, read_qual, reference, &gene, min_quality)
-                                    .unwrap_or_else(|| "Unknown".to_string());
-                                local_variants.push((Mutation::SNP(snp), aa_mutation));        
+                        if ref_base != read_base {
+                            let mut snp = SNP::new(
+                                ref_pos + match_idx,
+                                ref_base,
+                                 read_base,
+                                  read_qual[(read_pos + match_idx) as usize]
+                            );
+                            if let Some(gene) = snp.get_gene(annotation) {
+                                snp.translate(&read_seq, read_pos + match_idx, read_qual, reference, &gene);
+                                local_variants.push(Mutation::SNP(snp));        
                             }
                         }
                     }
@@ -53,39 +56,44 @@ pub fn call_variants(
                     ref_pos += len;
                 },
                 Cigar::Ins(len) => { // Call insertions
-                    if (read_pos as usize + (*len as usize)) > read_qual.len() || read_qual[read_pos as usize..read_pos as usize + (*len as usize)].iter().any(|&q| q < min_quality) {
-                        read_pos += len;
-                        continue;
-                    }
-
                     let ref_base = ref_seq[(ref_pos - 1) as usize] as char;
                     let ins_seq = read_seq[(read_pos as usize)..(read_pos as usize + *len as usize)].to_string();
-                    let insertion = Insertion::new(ref_pos - 1, ref_base, ins_seq);
+                    let mut insertion = Insertion::new(
+                        ref_pos - 1,
+                        ref_base,
+                         ins_seq,
+                         *read_qual[read_pos as usize..read_pos as usize + (*len as usize)].iter().min().unwrap_or(&0)
+                    );
+
                     if let Some(gene) = insertion.get_gene(annotation) {
-                        let aa_mutation = insertion.translate(&gene)
-                            .unwrap_or_else(|| "NA".to_string());
-                        local_variants.push((Mutation::Insertion(insertion), aa_mutation));                                    
+                        insertion.translate(&gene);
+                        local_variants.push(Mutation::Insertion(insertion));                                    
                     }
                     
                     read_pos += len;
                 },
                 Cigar::Del(len) => { // Call deletions
-                    if (read_pos as usize + (*len as usize)) > read_qual.len() || read_qual[read_pos as usize..read_pos as usize + (*len as usize)].iter().any(|&q| q < min_quality) {
-                        ref_pos += len;
-                        continue;
-                    }
-
+                    let del_qual = if (read_pos as usize + 1) > read_qual.len() {
+                        read_qual[read_pos as usize]
+                    } else {
+                        *read_qual[read_pos as usize..read_pos as usize + 1].iter().min().unwrap_or(&0)
+                    };
+                    
                     let deletion_site = ref_pos - 1;
 
                     let ref_base = ref_seq[deletion_site as usize] as char;
                     let del_seq = std::str::from_utf8(&ref_seq[(ref_pos as usize)..(ref_pos as usize + *len as usize)])
                         .expect("Invalid UTF-8 sequence in reference")
                         .to_string();
-                    let deletion = Deletion::new(deletion_site, ref_base, del_seq);
+                    let mut deletion = Deletion::new(
+                        deletion_site,
+                        ref_base,
+                        del_seq,
+                        del_qual
+                    );
                     if let Some(gene) = deletion.get_gene(annotation) {
-                        let aa_mutation = deletion.translate(&gene)
-                            .unwrap_or_else(|| "NA".to_string());
-                        local_variants.push((Mutation::Deletion(deletion), aa_mutation));                                    
+                        deletion.translate(&gene);
+                        local_variants.push(Mutation::Deletion(deletion));                                    
                     }
                     
                     ref_pos += len;
@@ -99,7 +107,7 @@ pub fn call_variants(
         local_variants
     };
 
-    let mut variants: Vec<(Mutation, String)> = Vec::new();
+    let mut variants: Vec<Mutation> = Vec::new();
     let mut range: (u32, u32) = (0, u32::MAX); // Consider using htslib range type here
 
     // Process read1 if present
@@ -146,18 +154,18 @@ pub fn call_variants(
     let mut unique_variants = Vec::new();
     let mut seen_variants = std::collections::HashSet::new();
     
-    for (var, aa_mut) in variants {
+    for var in variants {
         let var_str = var.to_string();
         if !seen_variants.contains(&var_str) && !var_str.is_empty() {
             seen_variants.insert(var_str);
-            unique_variants.push((var, aa_mut));
+            unique_variants.push(var);
         }
     }
 
     // Sort unique variants by mut position
     unique_variants.sort_by(|a, b| {
-        let a_pos = a.0.get_position();
-        let b_pos = b.0.get_position();
+        let a_pos = a.get_position();
+        let b_pos = b.get_position();
         a_pos.cmp(&b_pos)
     });
 
@@ -167,9 +175,8 @@ pub fn call_variants(
     let mut mutations_start = 0;
     let mut mutations_end = u32::MAX;
 
-    for (mutation, aa_mut) in unique_variants {
+    for mutation in unique_variants {
         nt_mutations.push(mutation.to_string());
-        aa_mutations.push(aa_mut);
         let pos = mutation.get_position();
         if mutations_start == 0 || pos < mutations_start {
             mutations_start = pos;
@@ -206,3 +213,9 @@ fn get_max_count(mut_range: (u32, u32), coverages: &[(u32, u32)]) -> u32 {
         .filter(|&&(_, cov_end)| cov_end >= mut_end)
         .count() as u32
 }
+
+// fn filter_quality(variants: Vec<Mutation>, min_quality: u8) -> Vec<Mutation> {
+//     variants.into_iter()
+//         .filter(|var| var.get_quality() >= min_quality)
+//         .collect()
+// }

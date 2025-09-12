@@ -11,14 +11,18 @@ pub struct Insertion {
     pos: u32,
     ref_base: char,
     alt_sequence: String,
+    quality: u8,
+    aa_mutation: Option<String>,
 }
 
 impl Insertion {
-    pub fn new(pos: u32, ref_base: char, alt_sequence: String) -> Self {
+    pub fn new(pos: u32, ref_base: char, alt_sequence: String, quality: u8) -> Self {
         Insertion {
             pos,
             ref_base,
             alt_sequence,
+            quality,
+            aa_mutation: None,
         }
     }
 
@@ -34,6 +38,14 @@ impl Insertion {
         self.alt_sequence.clone()
     }
 
+    pub fn get_quality(&self) -> u8 {
+        self.quality
+    }
+
+    pub fn set_aa_mutation(&mut self, aa_mutation: Option<String>) {
+        self.aa_mutation = aa_mutation;
+    }
+
     pub fn get_gene(&self, annotation: &HashMap<(u32, u32), String>) -> Option<Gene> {
         for (&(start, end), gene_name) in annotation.iter() {
             if self.get_position() >= start && self.get_position() <= end {
@@ -46,17 +58,14 @@ impl Insertion {
         None
     }
 
-    pub fn translate(&self, gene: &Gene) -> Option<String> {
+    pub fn translate(&mut self, gene: &Gene) {
         
         let insertion_seq = self.alt_sequence.as_bytes();
-        if insertion_seq.len() % 3 != 0 { return None }
+        if insertion_seq.len() % 3 != 0 { return; }
         
         let codon_pos = ((self.pos + 1 - gene.get_start()) / 3) + 2;
 
-        let alt_codon: Seq<Dna> = match insertion_seq.try_into() {
-            Ok(codon) => codon,
-            Err(_) => return None,
-        };
+        let alt_codon: Seq<Dna> = insertion_seq.try_into().expect("Invalid UTF-8 in reference sequence"); // panics
 
         let aa_insertion = alt_codon
             .chunks(3)
@@ -66,6 +75,6 @@ impl Insertion {
 
         let translated = format!("{}:INS{}{}", gene.get_name(), codon_pos, aa_insertion);
 
-        Some(translated)
+        self.aa_mutation = Some(translated);
     }
 }

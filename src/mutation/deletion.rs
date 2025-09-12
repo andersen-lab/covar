@@ -8,14 +8,18 @@ pub struct Deletion {
     pos: u32,
     ref_base: char,
     alt_sequence: String,
+    quality: u8,
+    aa_mutation: Option<String>,
 }
 
 impl Deletion {
-    pub fn new(pos: u32, ref_base: char, alt_sequence: String) -> Self {
+    pub fn new(pos: u32, ref_base: char, alt_sequence: String, quality: u8) -> Self {
         Deletion {
             pos,
             ref_base,
             alt_sequence,
+            quality,
+            aa_mutation: None,
         }
     }
 
@@ -31,6 +35,10 @@ impl Deletion {
         self.alt_sequence.clone()
     }
 
+    pub fn get_quality(&self) -> u8 {
+        self.quality
+    }
+
     pub fn get_gene(&self, annotation: &HashMap<(u32, u32), String>) -> Option<Gene> {
         for (&(start, end), gene_name) in annotation.iter() {
             if self.get_position() >= start && self.get_position() <= end {
@@ -43,11 +51,11 @@ impl Deletion {
         None
     }
     
-    pub fn translate(&self, gene: &Gene) -> Option<String> {
+    pub fn translate(&mut self, gene: &Gene){
         
         // check if deletion is in frame
         let deletion_seq = self.alt_sequence.as_bytes();
-        if deletion_seq.len() % 3 != 0 { return None } // not in frame
+        if deletion_seq.len() % 3 != 0 { return } // not in frame
         let deletion_aa_len = (deletion_seq.len() / 3) as u32;
 
         let codon_pos = ((self.pos + 1 - gene.get_start()) / 3) + 2;
@@ -58,6 +66,6 @@ impl Deletion {
             format!("{}:DEL{}", gene.get_name(), codon_pos)
         };
 
-        Some(translated)
+        self.aa_mutation = Some(translated);
     }
 }
