@@ -1,3 +1,4 @@
+#[derive(Debug, Clone)]
 pub struct Gene {
     pub start: u32,
     pub name: String,

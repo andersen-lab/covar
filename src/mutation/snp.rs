@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use bio_seq::prelude::*;
 use bio_seq::translation::STANDARD;
 use bio_seq::translation::TranslationTable;
@@ -13,17 +11,17 @@ pub struct SNP {
     ref_base: char,
     alt_base: char,
     quality: u8,
-    aa_mutation: Option<String>,
+    gene: Gene,
 }
 
 impl SNP {
-    pub fn new(pos: u32,ref_base: char, alt_base: char, quality: u8) -> Self {
+    pub fn new(pos: u32, ref_base: char, alt_base: char, quality: u8, gene: Gene) -> Self {
         SNP {
             pos,
             ref_base,
             alt_base,
             quality,
-            aa_mutation: None,
+            gene
         }
     }
 
@@ -43,50 +41,25 @@ impl SNP {
         self.quality
     }
 
-    pub fn get_aa_mutation(&self) -> Option<String> {
-        self.aa_mutation.clone()
-    }
 
-
-    pub fn get_gene(&self, annotation: &HashMap<(u32, u32), String>) -> Option<Gene> {
-        for (&(start, end), gene_name) in annotation.iter() {
-            if self.get_position() >= start && self.get_position() <= end {
-                return Some(Gene {
-                    start,
-                    name: gene_name.clone(),
-                });
-            }
-        }
-        None
-    }
-
-    pub fn translate(&mut self, read: &str, read_pos: u32, read_qual: &[u8], reference: &fasta::Record, gene: &Gene) {
+    pub fn translate(&self, read: &str, reference: &fasta::Record) -> Option<String> {
         let mut_pos_one_based = self.pos + 1; // 1-based for gene positions
         
-        let codon_phase = (mut_pos_one_based - gene.get_start()) % 3;
-        let codon_pos = (mut_pos_one_based - gene.get_start()) / 3;
-        
-        // handle codon spanning reads
-        if (read_pos as i32 - codon_phase as i32) < 0 { return }
-        if read_pos - codon_phase + 3  > read.len() as u32 { return }
+        let codon_phase = (mut_pos_one_based - self.gene.get_start()) % 3;
+        let codon_pos = (mut_pos_one_based - self.gene.get_start()) / 3;
         
         let ref_start_pos = (mut_pos_one_based - codon_phase - 1) as usize;
         let ref_end_pos = (mut_pos_one_based - codon_phase + 2) as usize;
         let ref_codon: Seq<Dna> = reference.seq()[ref_start_pos..ref_end_pos].try_into().expect("Invalid UTF-8 in reference sequence"); // panics
         let ref_aa = STANDARD.to_amino(&ref_codon).to_string();
         
-        let alt_start_pos = (read_pos - codon_phase) as usize;
-        let alt_end_pos = (read_pos - codon_phase + 3) as usize;
+        let alt_start_pos = (self.pos - codon_phase) as usize;
+        let alt_end_pos = (self.pos - codon_phase + 3) as usize;
         let alt_codon: Seq<Dna> = read[alt_start_pos..alt_end_pos].try_into().expect("Invalid UTF-8 in read sequence"); // panics
-        
-        // check min quality of all bases in codon 
-        if read_qual[alt_start_pos..alt_end_pos].iter().any(|&qual| qual < self.quality) {
-            self.quality = *read_qual[alt_start_pos..alt_end_pos].iter().min().unwrap();
-        }
 
         let alt_aa = STANDARD.to_amino(&alt_codon).to_string();
-        let translated = format!("{}:{}{}{}", gene.get_name(), ref_aa, codon_pos + 1, alt_aa);
+        let translated = format!("{}:{}{}{}", self.gene.get_name(), ref_aa, codon_pos + 1, alt_aa);
 
-        self.aa_mutation = Some(translated);
+        Some(translated)
     }
 }

@@ -1,6 +1,7 @@
 use std::error::Error;
 use std::collections::HashMap;
 
+use bio::io::fasta;
 use polars::prelude::*;
 
 use crate::Config;
@@ -25,27 +26,10 @@ macro_rules! struct_to_dataframe {
 }
 
 
-pub fn aggregate_clusters(clusters: &[Cluster], config: &Config) -> Result<DataFrame, Box<dyn Error>> {
-
-    // Fill in "Unknown" for missing amino acid mutations wherever possible
-    let mut nt_to_aa: HashMap<String, String> = HashMap::new();
-    for cluster in clusters {
-        nt_to_aa
-            .entry(cluster.nt_mutations.clone())
-            .and_modify(|existing_aa_mut| {
-                *existing_aa_mut = existing_aa_mut
-                    .split_whitespace()
-                    .zip(cluster.aa_mutations.split_whitespace())
-                    .map(|(existing, new)| if existing == "Unknown" { new } else { existing })
-                    .collect::<Vec<_>>()
-                    .join(" ");
-            })
-            .or_insert_with(|| cluster.aa_mutations.clone());
-    }
-    let clusters = clusters.to_vec();
+pub fn aggregate_clusters(clusters: &[Cluster], reference: &fasta::Record, config: &Config) -> Result<DataFrame, Box<dyn Error>> {
 
     let df = match struct_to_dataframe!(clusters,
-            [nt_mutations, aa_mutations, cluster_depth, total_depth, coverage_start, coverage_end, mutations_start, mutations_end]) {
+            [nt_mutations, cluster_depth, total_depth, coverage_start, coverage_end, mutations_start, mutations_end]) {
             Ok(df) => df.lazy(),
             Err(e) => panic!("Error creating DataFrame: {}", e),
         };
@@ -53,7 +37,6 @@ pub fn aggregate_clusters(clusters: &[Cluster], config: &Config) -> Result<DataF
     let df = df
         .group_by_stable([col("nt_mutations")])
         .agg([
-            //col("aa_mutations").first().alias("aa_mutations"),
             col("cluster_depth").sum().alias("cluster_depth"),
             col("total_depth").max().alias("total_depth"),
             col("coverage_start").max().alias("coverage_start"),
@@ -73,6 +56,14 @@ pub fn aggregate_clusters(clusters: &[Cluster], config: &Config) -> Result<DataF
         .filter(col("frequency").gt_eq(lit(config.min_frequency)))
 
         .collect()?;
+
+    // Translate
+    let mut nt_to_aa: HashMap<String, String> = HashMap::new();
+    for cluster in clusters {
+        nt_to_aa
+            .entry(cluster.nt_mutations.clone())
+            .or_insert_with(|| cluster.translate_cluster(reference));
+    }
 
     let aa_mutations: Vec<String> = df
         .column("nt_mutations")?

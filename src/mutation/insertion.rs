@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use bio_seq::prelude::*;
 use bio_seq::translation::STANDARD;
 use bio_seq::translation::TranslationTable;
@@ -12,17 +10,17 @@ pub struct Insertion {
     ref_base: char,
     alt_sequence: String,
     quality: u8,
-    aa_mutation: Option<String>,
+    gene: Gene,
 }
 
 impl Insertion {
-    pub fn new(pos: u32, ref_base: char, alt_sequence: String, quality: u8) -> Self {
+    pub fn new(pos: u32, ref_base: char, alt_sequence: String, quality: u8, gene: Gene) -> Self {
         Insertion {
             pos,
             ref_base,
             alt_sequence,
             quality,
-            aa_mutation: None,
+            gene
         }
     }
 
@@ -42,28 +40,12 @@ impl Insertion {
         self.quality
     }
 
-    pub fn get_aa_mutation(&self) -> Option<String> {
-        self.aa_mutation.clone()
-    }
-
-    pub fn get_gene(&self, annotation: &HashMap<(u32, u32), String>) -> Option<Gene> {
-        for (&(start, end), gene_name) in annotation.iter() {
-            if self.get_position() >= start && self.get_position() <= end {
-                return Some(Gene {
-                    start,
-                    name: gene_name.clone(),
-                });
-            }
-        }
-        None
-    }
-
-    pub fn translate(&mut self, gene: &Gene) {
+    pub fn translate(&self) -> Option<String> {
         
         let insertion_seq = self.alt_sequence.as_bytes();
-        if insertion_seq.len() % 3 != 0 { return; }
+        if insertion_seq.len() % 3 != 0 { return None }
         
-        let codon_pos = ((self.pos + 1 - gene.get_start()) / 3) + 2;
+        let codon_pos = ((self.pos + 1 - self.gene.get_start()) / 3) + 2;
 
         let alt_codon: Seq<Dna> = insertion_seq.try_into().expect("Invalid UTF-8 in reference sequence"); // panics
 
@@ -73,8 +55,8 @@ impl Insertion {
             .collect::<Seq<Amino>>()
             .to_string();
 
-        let translated = format!("{}:INS{}{}", gene.get_name(), codon_pos, aa_insertion);
+        let translated = format!("{}:INS{}{}", self.gene.get_name(), codon_pos, aa_insertion);
 
-        self.aa_mutation = Some(translated);
+        Some(translated)
     }
 }

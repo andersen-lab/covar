@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::gene::Gene;
 
 
@@ -9,17 +7,17 @@ pub struct Deletion {
     ref_base: char,
     alt_sequence: String,
     quality: u8,
-    aa_mutation: Option<String>,
+    gene: Gene,
 }
 
 impl Deletion {
-    pub fn new(pos: u32, ref_base: char, alt_sequence: String, quality: u8) -> Self {
+    pub fn new(pos: u32, ref_base: char, alt_sequence: String, quality: u8, gene: Gene) -> Self {
         Deletion {
             pos,
             ref_base,
             alt_sequence,
             quality,
-            aa_mutation: None,
+            gene
         }
     }
 
@@ -38,38 +36,22 @@ impl Deletion {
     pub fn get_quality(&self) -> u8 {
         self.quality
     }
-
-    pub fn get_aa_mutation(&self) -> Option<String> {
-        self.aa_mutation.clone()
-    }
-
-    pub fn get_gene(&self, annotation: &HashMap<(u32, u32), String>) -> Option<Gene> {
-        for (&(start, end), gene_name) in annotation.iter() {
-            if self.get_position() >= start && self.get_position() <= end {
-                return Some(Gene {
-                    start,
-                    name: gene_name.clone(),
-                });
-            }
-        }
-        None
-    }
     
-    pub fn translate(&mut self, gene: &Gene){
+    pub fn translate(&self) -> Option<String>{
         
         // check if deletion is in frame
         let deletion_seq = self.alt_sequence.as_bytes();
-        if deletion_seq.len() % 3 != 0 { return } // not in frame
+        if deletion_seq.len() % 3 != 0 { return None } // not in frame
         let deletion_aa_len = (deletion_seq.len() / 3) as u32;
 
-        let codon_pos = ((self.pos + 1 - gene.get_start()) / 3) + 2;
+        let codon_pos = ((self.pos + 1 - self.gene.get_start()) / 3) + 2;
 
         let translated = if deletion_aa_len > 1 {
-            format!("{}:DEL{}/{}", gene.get_name(), codon_pos, codon_pos + deletion_aa_len - 1)
+            format!("{}:DEL{}/{}", self.gene.get_name(), codon_pos, codon_pos + deletion_aa_len - 1)
         } else {
-            format!("{}:DEL{}", gene.get_name(), codon_pos)
+            format!("{}:DEL{}", self.gene.get_name(), codon_pos)
         };
 
-        self.aa_mutation = Some(translated);
+        Some(translated)
     }
 }

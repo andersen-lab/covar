@@ -7,6 +7,8 @@ use bio::io::fasta;
 use rust_htslib::bam::record::Cigar;
 use rust_htslib::bam::Record;
 
+use crate::gene::Gene;
+
 pub fn call_variants(
     read_pair: &(Option<Record>, Option<Record>),
     reference: &fasta::Record,
@@ -40,14 +42,14 @@ pub fn call_variants(
                         let read_base = read_seq.chars().nth((read_pos + match_idx) as usize).unwrap();
                         
                         if ref_base != read_base {
-                            let mut snp = SNP::new(
-                                ref_pos + match_idx,
-                                ref_base,
-                                 read_base,
-                                  read_qual[(read_pos + match_idx) as usize]
-                            );
-                            if let Some(gene) = snp.get_gene(annotation) {
-                                snp.translate(&read_seq, read_pos + match_idx, read_qual, reference, &gene);
+                            if let Some(gene) = get_gene(ref_pos+match_idx, annotation) {
+                                let snp = SNP::new(
+                                    ref_pos + match_idx,
+                                    ref_base,
+                                    read_base,
+                                    read_qual[(read_pos + match_idx) as usize],
+                                    gene
+                                );
                                 local_variants.push(Mutation::SNP(snp));        
                             }
                         }
@@ -56,46 +58,39 @@ pub fn call_variants(
                     ref_pos += len;
                 },
                 Cigar::Ins(len) => { // Call insertions
-                    let ref_base = ref_seq[(ref_pos - 1) as usize] as char;
-                    let ins_seq = read_seq[(read_pos as usize)..(read_pos as usize + *len as usize)].to_string();
-                    let mut insertion = Insertion::new(
-                        ref_pos - 1,
-                        ref_base,
-                         ins_seq,
-                         *read_qual[read_pos as usize..read_pos as usize + (*len as usize)].iter().min().unwrap_or(&0)
-                    );
-
-                    if let Some(gene) = insertion.get_gene(annotation) {
-                        insertion.translate(&gene);
+                    if let Some(gene) = get_gene(ref_pos, annotation) {
+                        let ref_base = ref_seq[(ref_pos - 1) as usize] as char;
+                        let ins_seq = read_seq[(read_pos as usize)..(read_pos as usize + *len as usize)].to_string();
+                        let insertion = Insertion::new(
+                            ref_pos - 1,
+                            ref_base,
+                            ins_seq,
+                            *read_qual[read_pos as usize..read_pos as usize + (*len as usize)].iter().min().unwrap_or(&0),
+                            gene
+                        );
                         local_variants.push(Mutation::Insertion(insertion));                                    
                     }
-                    
                     read_pos += len;
                 },
                 Cigar::Del(len) => { // Call deletions
-                    let del_qual = if (read_pos as usize + 1) > read_qual.len() {
-                        read_qual[read_pos as usize]
-                    } else {
-                        *read_qual[read_pos as usize..read_pos as usize + 1].iter().min().unwrap_or(&0)
-                    };
-                    
-                    let deletion_site = ref_pos - 1;
-
-                    let ref_base = ref_seq[deletion_site as usize] as char;
-                    let del_seq = std::str::from_utf8(&ref_seq[(ref_pos as usize)..(ref_pos as usize + *len as usize)])
-                        .expect("Invalid UTF-8 sequence in reference")
-                        .to_string();
-                    let mut deletion = Deletion::new(
-                        deletion_site,
-                        ref_base,
-                        del_seq,
-                        del_qual
-                    );
-                    if let Some(gene) = deletion.get_gene(annotation) {
-                        deletion.translate(&gene);
+                    if let Some(gene) = get_gene(ref_pos, annotation) {
+                        let del_qual = if (read_pos as usize + 1) > read_qual.len() { // use flanking positions for quality
+                            read_qual[read_pos as usize]
+                        } else {
+                            *read_qual[read_pos as usize..read_pos as usize + 1].iter().min().unwrap_or(&0)
+                        };
+                        let del_seq = std::str::from_utf8(&ref_seq[(ref_pos as usize)..(ref_pos as usize + *len as usize)])
+                            .expect("Invalid UTF-8 sequence in reference")
+                            .to_string();
+                        let deletion = Deletion::new(
+                            ref_pos - 1,
+                            ref_seq[(ref_pos as usize) - 1] as char,
+                            del_seq,
+                            del_qual,
+                            gene
+                        );
                         local_variants.push(Mutation::Deletion(deletion));                                    
                     }
-                    
                     ref_pos += len;
                 },
                 Cigar::SoftClip(len) => {
@@ -162,29 +157,20 @@ pub fn call_variants(
         }
     }
 
-    // Filter by quality
     unique_variants = filter_quality(unique_variants, min_quality);
 
-    // Sort unique variants by mut position
     unique_variants.sort_by(|a, b| {
         let a_pos = a.get_position();
         let b_pos = b.get_position();
         a_pos.cmp(&b_pos)
     });
 
-    // Separate nt and aa mutations and parse as string
     let mut nt_mutations: Vec<String> = Vec::new();
-    let mut aa_mutations: Vec<String> = Vec::new();
-
     let mut mutations_start = 0;
     let mut mutations_end = u32::MAX;
 
-    for mutation in unique_variants {
+    for mutation in &unique_variants {
         nt_mutations.push(mutation.to_string());
-        aa_mutations.push(match mutation {
-            Mutation::SNP(_) => mutation.get_aa_mutation().unwrap_or("Unknown".to_string()),
-            _ => mutation.get_aa_mutation().unwrap_or("NA".to_string()),
-        });
         let pos = mutation.get_position();
         if mutations_start == 0 || pos < mutations_start {
             mutations_start = pos;
@@ -200,8 +186,8 @@ pub fn call_variants(
     );
 
     Cluster::new(
+        unique_variants,
         nt_mutations.join(" "),
-        aa_mutations.join(" "),
         max_count,
         range.0, 
         range.1,
@@ -226,4 +212,16 @@ fn filter_quality(variants: Vec<Mutation>, min_quality: u8) -> Vec<Mutation> {
     variants.into_iter()
         .filter(|var| var.get_quality() >= min_quality)
         .collect()
+}
+
+fn get_gene(pos: u32, annotation: &HashMap<(u32, u32), String>) -> Option<Gene> {
+    for (&(start, end), gene_name) in annotation.iter() {
+        if pos >= start && pos <= end {
+            return Some(Gene {
+                start,
+                name: gene_name.clone(),
+            });
+        }
+    }
+    None
 }

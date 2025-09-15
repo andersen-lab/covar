@@ -47,14 +47,14 @@ fn run(config: Config) -> Result<(), Box<dyn Error>> {
     rayon::ThreadPoolBuilder::new().num_threads(config.threads).build_global().unwrap();
 
     let pb = Arc::new(indicatif::ProgressBar::new(read_pairs.len() as u64));
-    let reference = Arc::new(reference);
+    let arc_reference = Arc::new(&reference);
     let annotation = Arc::new(annotation);
     let coverage_map = Arc::new(coverage_map);
 
     let clusters: Vec<_> = read_pairs
         .into_par_iter()
         .map(|pair| {
-            let variants = call_variants(&pair, &reference, &annotation, &coverage_map, config.min_quality);
+            let variants = call_variants(&pair, &arc_reference, &annotation, &coverage_map, config.min_quality);
             pb.inc(1);
             variants
         })
@@ -63,7 +63,7 @@ fn run(config: Config) -> Result<(), Box<dyn Error>> {
     pb.finish_and_clear();
 
     // Aggregate unique clusters
-    let mut clusters_merged = aggregate_clusters(&clusters, &config)?;
+    let mut clusters_merged = aggregate_clusters(&clusters, &reference, &config)?;
     
     // Write to file if provided, else to stdout
     if let Some(output_path) = config.output { 
