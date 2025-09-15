@@ -162,6 +162,9 @@ pub fn call_variants(
         }
     }
 
+    // Filter by quality
+    unique_variants = filter_quality(unique_variants, min_quality);
+
     // Sort unique variants by mut position
     unique_variants.sort_by(|a, b| {
         let a_pos = a.get_position();
@@ -172,11 +175,16 @@ pub fn call_variants(
     // Separate nt and aa mutations and parse as string
     let mut nt_mutations: Vec<String> = Vec::new();
     let mut aa_mutations: Vec<String> = Vec::new();
+
     let mut mutations_start = 0;
     let mut mutations_end = u32::MAX;
 
     for mutation in unique_variants {
         nt_mutations.push(mutation.to_string());
+        aa_mutations.push(match mutation {
+            Mutation::SNP(_) => mutation.get_aa_mutation().unwrap_or("Unknown".to_string()),
+            _ => mutation.get_aa_mutation().unwrap_or("NA".to_string()),
+        });
         let pos = mutation.get_position();
         if mutations_start == 0 || pos < mutations_start {
             mutations_start = pos;
@@ -214,8 +222,8 @@ fn get_max_count(mut_range: (u32, u32), coverages: &[(u32, u32)]) -> u32 {
         .count() as u32
 }
 
-// fn filter_quality(variants: Vec<Mutation>, min_quality: u8) -> Vec<Mutation> {
-//     variants.into_iter()
-//         .filter(|var| var.get_quality() >= min_quality)
-//         .collect()
-// }
+fn filter_quality(variants: Vec<Mutation>, min_quality: u8) -> Vec<Mutation> {
+    variants.into_iter()
+        .filter(|var| var.get_quality() >= min_quality)
+        .collect()
+}

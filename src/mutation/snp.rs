@@ -43,9 +43,10 @@ impl SNP {
         self.quality
     }
 
-    pub fn set_aa_mutation(&mut self, aa_mutation: Option<String>) {
-        self.aa_mutation = aa_mutation;
+    pub fn get_aa_mutation(&self) -> Option<String> {
+        self.aa_mutation.clone()
     }
+
 
     pub fn get_gene(&self, annotation: &HashMap<(u32, u32), String>) -> Option<Gene> {
         for (&(start, end), gene_name) in annotation.iter() {

@@ -23,6 +23,22 @@ impl Mutation {
             Mutation::Deletion(del) => del.get_position(),
         }
     }
+
+    pub fn get_quality(&self) -> u8 {
+        match self {
+            Mutation::SNP(snp) => snp.get_quality(),
+            Mutation::Insertion(ins) => ins.get_quality(),
+            Mutation::Deletion(del) => del.get_quality(),
+        }
+    }
+
+    pub fn get_aa_mutation(&self) -> Option<String> {
+        match self {
+            Mutation::SNP(snp) => snp.get_aa_mutation(),
+            Mutation::Insertion(ins) => ins.get_aa_mutation(),
+            Mutation::Deletion(del) => del.get_aa_mutation(),
+        }
+    }
 }
 
 impl fmt::Display for Mutation {

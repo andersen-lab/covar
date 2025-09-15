@@ -53,7 +53,7 @@ pub fn aggregate_clusters(clusters: &[Cluster], config: &Config) -> Result<DataF
     let df = df
         .group_by_stable([col("nt_mutations")])
         .agg([
-            // col("aa_mutations").mode().alias("aa_mutations"),
+            //col("aa_mutations").first().alias("aa_mutations"),
             col("cluster_depth").sum().alias("cluster_depth"),
             col("total_depth").max().alias("total_depth"),
             col("coverage_start").max().alias("coverage_start"),
@@ -74,13 +74,12 @@ pub fn aggregate_clusters(clusters: &[Cluster], config: &Config) -> Result<DataF
 
         .collect()?;
 
-
     let aa_mutations: Vec<String> = df
         .column("nt_mutations")?
         .str()?
         .into_iter()
         .filter_map(|nt_mut| nt_mut.and_then(|nt| nt_to_aa.get(nt).cloned()))
-        .collect(); // <-- Now Rust knows it's Vec<String>
+        .collect(); 
 
     let aa_mutations_series = Series::new(PlSmallStr::from("aa_mutations"), aa_mutations);
     let mut df = df.clone();
