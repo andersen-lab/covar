@@ -32,7 +32,11 @@ impl Cluster {
     pub fn translate_cluster(&self, reference: &fasta::Record) -> String {
 
         // create mock read sequence with mutations applied
-        let mut read_seq = String::from_utf8(reference.seq().to_vec()).expect("Invalid UTF-8 in reference sequence"); // panics
+        let mut read_seq = String::from_utf8(reference.seq().to_vec())
+            .expect("Invalid UTF-8 in reference sequence");
+        let start = self.coverage_start;
+        let end = self.coverage_end;
+
         for mutation in &self.mutations {
             match mutation {
                 Mutation::SNP(snp) => {
@@ -53,7 +57,7 @@ impl Cluster {
         for mutation in &self.mutations {
             match mutation {
                 Mutation::SNP(snp) => {
-                    aa_mutations.push(snp.translate(&read_seq, reference).unwrap_or("Unknown".to_string()));
+                    aa_mutations.push(snp.translate(&read_seq, reference, start, end).unwrap_or("Unknown".to_string()));
                 },
                 Mutation::Deletion(del) => {
                     aa_mutations.push(del.translate().unwrap_or("NA".to_string()));
