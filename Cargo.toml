@@ -14,4 +14,5 @@ bio-seq = { version="0.14", features=["translation"] }
 polars = { version = "0.46.0", features = ["lazy", "round_series"] }
 crossbeam = "0.8.4"
 rayon = "1.11.0"
+tempfile = "3.22.0"
 
