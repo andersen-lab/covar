@@ -6,7 +6,8 @@ use std::path::PathBuf;
 use bio::io::{fasta, gff};
 use bio::io::fasta::FastaRead;
 
-use rust_htslib::bam::{IndexedReader, Read, Record};
+use rust_htslib::bam::{IndexedReader, Read, Record, Writer, Format, header};
+use rust_htslib::bam::record::Cigar;
 
 
 pub fn read_reference(path: &PathBuf) -> Result<fasta::Record, Box<dyn Error>> {
@@ -123,3 +124,36 @@ pub fn get_coverage_map(read_pairs: &[(Option<Record>, Option<Record>)]) -> Vec<
     coverage_map.sort_by_key(|&(start, end)| (start, end));
     coverage_map
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_read_reference() {
+        let mock_reference_str = b">chr1\nACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGTACGT";
+        let mock_reference_file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(mock_reference_file.path(), mock_reference_str).unwrap();
+
+        let reference = read_reference(&PathBuf::from(mock_reference_file.path())).unwrap();
+
+        assert_eq!(reference.id(), "chr1");
+        assert_eq!(reference.seq().len(), 80);
+    }
+
+    #[test]
+    fn test_read_annotation() {
+        let mock_gff_str = b"##gff-version 3\nchr1\t.\tCDS\t1\t1000\t.\t+\t0\tID=cds1;gene=gene1\nchr1\t.\tCDS\t2000\t3000\t.\t+\t0\tID=cds2;gene=gene2\nchr1\t.\tCDS\t4000\t5000\t.\t+\t0\tID=cds3;gene=ORF1ab\n";
+        let mock_gff_file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(mock_gff_file.path(), mock_gff_str).unwrap();
+
+        let gene_regions = read_annotation(&PathBuf::from(mock_gff_file.path())).unwrap();
+
+        assert_eq!(gene_regions.len(), 4);
+        assert_eq!(gene_regions.get(&(1, 1000)).unwrap(), "gene1");
+        assert_eq!(gene_regions.get(&(2000, 3000)).unwrap(), "gene2");
+        assert_eq!(gene_regions.get(&(266, 13468)).unwrap(), "ORF1a");
+        assert_eq!(gene_regions.get(&(13468, 21555)).unwrap(), "ORF1b");
+    }
+}   
