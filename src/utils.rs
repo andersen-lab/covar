@@ -6,8 +6,7 @@ use std::path::PathBuf;
 use bio::io::{fasta, gff};
 use bio::io::fasta::FastaRead;
 
-use rust_htslib::bam::{IndexedReader, Read, Record, Writer, Format, header};
-use rust_htslib::bam::record::Cigar;
+use rust_htslib::bam::{IndexedReader, Read, Record};
 
 
 pub fn read_reference(path: &PathBuf) -> Result<fasta::Record, Box<dyn Error>> {
