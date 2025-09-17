@@ -50,7 +50,7 @@ impl SNP {
 
         // handle codon spanning reads
         if (self.pos as i32 - codon_phase as i32) < start as i32 { return None }
-        if self.pos - codon_phase + 3  > end as u32 { return  None }
+        if self.pos - codon_phase + 3  > end { return  None }
         
         let ref_start_pos = (mut_pos_one_based - codon_phase - 1) as usize;
         let ref_end_pos = (mut_pos_one_based - codon_phase + 2) as usize;
