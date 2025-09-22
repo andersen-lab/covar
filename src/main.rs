@@ -43,7 +43,7 @@ fn run(config: Config) -> Result<(), Box<dyn Error>> {
     );
     let coverage_map = get_coverage_map(&read_pairs);
 
-    // Call variants in parallel
+    // Call variants
     rayon::ThreadPoolBuilder::new().num_threads(config.threads).build_global().unwrap();
 
     let pb = Arc::new(indicatif::ProgressBar::new(read_pairs.len() as u64));

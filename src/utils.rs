@@ -155,4 +155,15 @@ mod tests {
         assert_eq!(gene_regions.get(&(266, 13468)).unwrap(), "ORF1a");
         assert_eq!(gene_regions.get(&(13468, 21555)).unwrap(), "ORF1b");
     }
+
+    #[test]
+    fn test_read_bam_and_coverage() {
+        let mock_bam_path = PathBuf::from("tests/data/mock.bam");
+        let mut bam = IndexedReader::from_path(&mock_bam_path).unwrap();
+        let read_pairs = read_pair_generator(&mut bam, "NC_045512.2", 23000, 24000);
+        let coverage_map = get_coverage_map(&read_pairs);
+
+        assert!(!read_pairs.is_empty());
+        assert!(!coverage_map.is_empty());
+    }
 }   
