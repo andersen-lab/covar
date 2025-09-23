@@ -81,3 +81,26 @@ fn run(config: Config) -> Result<(), Box<dyn Error>> {
     
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+    #[test]
+    fn test_run() {
+        let config = Config {
+            input_bam: PathBuf::from("tests/data/test.bam"),
+            reference_fasta: PathBuf::from("tests/data/NC_045512_Hu-1.fasta"),
+            annotation_gff: PathBuf::from("tests/data/NC_045512_Hu-1.gff"),
+            output: None,
+            start_site: 23000,
+            end_site: 23100,
+            min_depth: 5,
+            min_frequency: 0.01,
+            min_quality: 30,
+            threads: 2,
+        };
+        let result = run(config);
+        assert!(result.is_ok());
+    }
+}

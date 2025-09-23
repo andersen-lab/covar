@@ -5,8 +5,5 @@
 target
 
 # Debugging
-*.bam*
-*.fasta*
 *.fastq*
-*.gff*
 *.tsv*

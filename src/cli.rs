@@ -85,3 +85,45 @@ impl Config {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_end_before_start_errors() {
+        let args = Cli {
+            input_bam: PathBuf::from("tests/data/test.bam"),
+            reference_fasta: PathBuf::from("tests/data/NC_045512_Hu-1.fasta"),
+            annotation_gff: PathBuf::from("tests/data/NC_045512_Hu-1.gff"),
+            output: None,
+            start_site: 500,
+            end_site: Some(100), // end < start should produce an error
+            min_depth: 1,
+            min_frequency: 0.001,
+            min_quality: 20,
+            threads: 1,
+        };
+        assert!(Config::from_cli(args).is_err());
+    }
+
+    #[test]
+    fn test_config_from_cli_default_end_uses_reference_length() {
+        let args = Cli {
+            input_bam: PathBuf::from("tests/data/test.bam"),
+            reference_fasta: PathBuf::from("tests/data/NC_045512_Hu-1.fasta"),
+            annotation_gff: PathBuf::from("tests/data/NC_045512_Hu-1.gff"),
+            output: None,
+            start_site: 1,
+            end_site: None, // should default to reference length
+            min_depth: 1,
+            min_frequency: 0.001,
+            min_quality: 20,
+            threads: 1,
+        };
+        let config = Config::from_cli(args).unwrap();
+        let reference = crate::utils::read_reference(&config.reference_fasta).unwrap();
+        assert_eq!(config.end_site, reference.seq().len() as u32);
+    }
+}
