@@ -37,25 +37,27 @@ pub fn read_annotation(path: &PathBuf) -> Result<HashMap<(u32, u32), String>, Bo
 }
 
 pub fn read_pair_generator(
-    bam: & mut IndexedReader,
+    bam: &mut IndexedReader,
     refname: &str,
     min_site: u32,
-    max_site: u32,) -> Vec<(Option<Record>, Option<Record>)> {
-
+    max_site: u32,
+) -> Vec<(Option<Record>, Option<Record>)> {
     let tid = match bam.header().tid(refname.as_bytes())
-            .ok_or_else(|| std::io::Error::new(
-                ErrorKind::NotFound, 
-                format!("Reference '{}' not found", refname)
-            )) {
-        Ok(t) => t,
-        Err(e) => panic!("Error: {}", e),
-    };
+        .ok_or_else(|| std::io::Error::new(
+            ErrorKind::NotFound,
+            format!("Reference '{}' not found", refname)
+        )) {
+            Ok(t) => t,
+            Err(e) => panic!("Error: {}", e),
+        };
 
-    let _ = bam.fetch((tid, min_site , max_site + 1))
+    let _ = bam.fetch((tid, min_site, max_site + 1))
         .map_err(|e| Box::new(e) as Box<dyn Error>);
 
-    // Get read pairs by query name
-    let mut read_pairs: HashMap<Vec<u8>, (Option<Record>, Option<Record>)> = HashMap::new();
+    // Keep only unmatched reads in memory; when a mate arrives emit the pair immediately.
+    let mut waiting: HashMap<Vec<u8>, Record> = HashMap::new();
+    let mut results: Vec<(Option<Record>, Option<Record>)> = Vec::new();
+
     for record_result in bam.records() {
         let record = match record_result {
             Ok(r) => r,
@@ -66,25 +68,38 @@ pub fn read_pair_generator(
             continue;
         }
 
-        let query_name = record.qname().to_owned();
-        
-        let entry = read_pairs.entry(query_name).or_insert((None, None));
-        
-        if record.is_first_in_template() {
-            entry.0 = Some(record);
-        } else if record.is_last_in_template() {
-            entry.1 = Some(record);
-        } else {
-            // Handle singleton reads
-            if entry.0.is_none() {
-                entry.0 = Some(record);
+        let qname = record.qname().to_vec();
+
+        if let Some(prev) = waiting.remove(&qname) {
+            // We have a mate; decide ordering based on flags if possible.
+            let pair = if prev.is_first_in_template() {
+                (Some(prev), Some(record))
+            } else if prev.is_last_in_template() {
+                (Some(record), Some(prev))
             } else {
-                entry.1 = Some(record);
-            }
+                // Fallback: treat the previously seen as first.
+                (Some(prev), Some(record))
+            };
+            results.push(pair);
+        } else {
+            // No mate seen yet: store this read and wait for its mate.
+            waiting.insert(qname, record);
         }
     }
 
-    read_pairs.into_values().collect()
+    // Any remaining reads in `waiting` are singletons (mate not seen in the region).
+    for (_k, rec) in waiting.into_iter() {
+        if rec.is_first_in_template() {
+            results.push((Some(rec), None));
+        } else if rec.is_last_in_template() {
+            results.push((None, Some(rec)));
+        } else {
+            // Unknown orientation: put into the first slot.
+            results.push((Some(rec), None));
+        }
+    }
+
+    results
 }
 
 pub fn get_coverage_map(read_pairs: &[(Option<Record>, Option<Record>)]) -> Vec<(u32, u32)> {
@@ -142,6 +157,7 @@ mod tests {
         let gene_regions = read_annotation(&PathBuf::from("tests/data/NC_045512_Hu-1.gff")).unwrap();
 
         assert_eq!(gene_regions.len(), 12);
+        assert_eq!(gene_regions.get(&(21563, 25384)).unwrap(), "S");
         assert_eq!(gene_regions.get(&(266, 13468)).unwrap(), "ORF1a");
         assert_eq!(gene_regions.get(&(13468, 21555)).unwrap(), "ORF1b");
     }
