@@ -109,7 +109,7 @@ mod tests {
     }
 
     #[test]
-    fn test_config_from_cli_default_end_uses_reference_length() {
+    fn test_config() {
         let args = Cli {
             input_bam: PathBuf::from("tests/data/test.bam"),
             reference_fasta: PathBuf::from("tests/data/NC_045512_Hu-1.fasta"),

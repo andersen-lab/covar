@@ -9,8 +9,8 @@ use bio::io::fasta::FastaRead;
 use rust_htslib::bam::{IndexedReader, Read, Record};
 
 
-pub fn read_reference(path: &PathBuf) -> Result<fasta::Record, Box<dyn Error>> {
-    let mut reader = fasta::Reader::from_file(path)?;
+pub fn read_reference<P: AsRef<std::path::Path>>(path: P) -> Result<fasta::Record, Box<dyn Error>> {
+    let mut reader = fasta::Reader::from_file(path.as_ref())?;
     let mut reference = fasta::Record::new();
     reader.read(&mut reference)?;
     Ok(reference)
