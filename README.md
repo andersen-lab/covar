@@ -3,7 +3,13 @@ coVar is a tool for detecting physically-linked mutations in genomic data. Given
 
 ## Installation
 
-Currently, to install coVar, you need to have [cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html) installed. On release we plan to publish a precompiled binary to crates.io and bioconda.
+Currently, to install coVar, you need to have [cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html) installed.
+
+### Install from crates.io (recommended)
+```
+cargo install covar
+covar --version
+```
 
 ### Local build from source (experimental)
 ```
