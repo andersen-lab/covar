@@ -45,7 +45,7 @@ covar --input <INPUT_BAM> --reference <REFERENCE_FASTA> --annotation <ANNOTATION
 ## Example Commands
 ### Basic run
 ```bash
-coVar \
+covar \
   -i sample.bam \
   -r reference.fasta \
   -a annotation.gff3
@@ -53,7 +53,7 @@ coVar \
 
 ### Specify genomic region and output file
 ```bash
-coVar \
+covar \
   -i sample.bam \
   -r reference.fasta \
   -a annotation.gff3 \
@@ -64,7 +64,7 @@ coVar \
 
 ### Multi-threaded run with custom depth, quality and frequency thresholds
 ```bash
-coVar \
+covar \
   -i sample.bam \
   -r reference.fasta \
   -a annotation.gff3 \
@@ -86,4 +86,4 @@ The output is a tab-delimited file (.tsv) with the following columns:
 | `coverage_start` | Maximum read start site for which this cluster was detected |
 | `coverage_end`   | Minimum read end site for which this cluster was detected   |
 
-\*Note: Not all nucleotide mutations will have a corresponding amino acid mutations. For example, SNPs in codons that span reads or framshift indels will be translated as 'Unknown' and 'NA', respectively.
+\*Note: Not all nucleotide mutations will have a corresponding amino acid mutations. For example, SNPs in codons that span reads or frameshift indels will be translated as 'Unknown' and 'NA', respectively.
