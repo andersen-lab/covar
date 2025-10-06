@@ -1,11 +1,19 @@
 # coVar
-coVar is a tool for detecting physically-linked mutations in genomic data. Given a sorted, indexed BAM file, reference genome and gene annotation, coVar identifies and counts sequencing reads with unique physically linked mutations.
+[![Conda (channel only)](https://img.shields.io/conda/vn/bioconda/covar?color=green)](https://anaconda.org/bioconda/covar)
+[![crates.io version](https://img.shields.io/crates/v/covar)](https://crates.io/crates/covar)
+[![crates.io downloads](https://img.shields.io/crates/d/covar?color=orange&label=downloads)](https://crates.io/crates/covar)
+
+coVar is a tool for detecting physically-linked mutations in wastewater genomic sequencing data. Given a sorted, indexed BAM file, reference genome and gene annotation, coVar identifies and counts sequencing reads with unique physically linked mutations.
 
 ## Installation
 
-Currently, to install coVar, you need to have [cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html) installed.
+### Bioconda (recommended)
+```
+conda install -c bioconda covar
+covar --version
+```
 
-### Install from crates.io (recommended)
+### crates.io (recommended)
 ```
 cargo install covar
 covar --version
