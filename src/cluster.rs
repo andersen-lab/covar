@@ -1,4 +1,5 @@
 use std::fmt;
+use std::collections::HashSet;
 use bio::io::fasta;
 
 use crate::mutation::Mutation;
@@ -53,18 +54,16 @@ impl Cluster {
         }
 
         let mut aa_mutations: Vec<String> = Vec::new();
+        let mut seen: HashSet<String> = HashSet::new();
 
         for mutation in &self.mutations {
-            match mutation {
-                Mutation::SNP(snp) => {
-                    aa_mutations.push(snp.translate(&read_seq, reference, start, end).unwrap_or("Unknown".to_string()));
-                },
-                Mutation::Deletion(del) => {
-                    aa_mutations.push(del.translate().unwrap_or("NA".to_string()));
-                },
-                Mutation::Insertion(ins) => {
-                    aa_mutations.push(ins.translate().unwrap_or("NA".to_string()));
-                },
+            let aa = match mutation {
+                Mutation::SNP(snp) => snp.translate(&read_seq, reference, start, end).unwrap_or("Unknown".to_string()),
+                Mutation::Deletion(del) => del.translate().unwrap_or("NA".to_string()),
+                Mutation::Insertion(ins) => ins.translate().unwrap_or("NA".to_string()),
+            };
+            if aa == "NA" || seen.insert(aa.clone()) {
+                aa_mutations.push(aa);
             }
         }
         aa_mutations.join(" ")
