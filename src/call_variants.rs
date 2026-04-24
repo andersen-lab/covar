@@ -74,11 +74,13 @@ pub fn call_variants(
                 },
                 Cigar::Del(len) => { // Call deletions
                     if let Some(gene) = get_gene(ref_pos, annotation) {
-                        let del_qual = if (read_pos as usize + 1) > read_qual.len() { // use flanking positions for quality
-                            read_qual[read_pos as usize]
-                        } else {
-                            *read_qual[read_pos as usize..read_pos as usize + 1].iter().min().unwrap_or(&0)
-                        };
+                        // Deletions have no read bases; use the current base quality, or
+                        // the closest flanking quality when the deletion is at read end.
+                        let del_qual = read_qual
+                            .get(read_pos as usize)
+                            .copied()
+                            .or_else(|| read_qual.last().copied())
+                            .unwrap_or(0);
                         let del_seq = std::str::from_utf8(&ref_seq[(ref_pos as usize)..(ref_pos as usize + *len as usize)])
                             .expect("Invalid UTF-8 sequence in reference")
                             .to_string();
