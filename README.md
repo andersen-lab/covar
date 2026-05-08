@@ -100,14 +100,3 @@ The output is a tab-delimited file (.tsv) with the following columns:
 | `coverage_end`   | Minimum read end site for which this cluster was detected   |
 
 **Note**: Not all nucleotide mutations will have a corresponding amino acid mutations. For example, SNPs in codons that span reads or frameshift indels will be translated as 'Unknown' and 'NA', respectively.
-
-Additionally, in the case of multiple nucleotide mutations in a single codon, the amino acid translation will occur multiple times. For example, if a codon has two SNPs, the amino acid translation will be repeated for each SNP. See the following example:
-
-```
-nt_mutations:
-G22813T T22882G G22895C T22896C G22898A A22948C A22948-CCT
-aa_mutations:
-S:K417N S:N440K S:V445P S:V445P S:G446S S:K462N S:DEL463
-```
-
-Here, the SNPS G22895C and T22896C are in the same codon, which result in Proline (P) at position 445. In order to keep a one-to-one relationship between nucleotide and amino acid mutations, the amino acid translation will be repeated so we see S:V445P twice.
