@@ -44,11 +44,6 @@ impl Cluster {
                     let pos = snp.get_position() as usize;
                     read_seq.replace_range(pos..pos+1, &snp.get_alternate_base());
                 },
-                Mutation::Insertion(ins) => {
-                    let pos = ins.get_position() as usize;
-                    let seq = ins.get_alternate_base();
-                    read_seq.insert_str(pos, &seq);
-                },
                 _ => {},
             }
         }
